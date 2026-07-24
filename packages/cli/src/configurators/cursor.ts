@@ -8,7 +8,6 @@ import {
   resolveBundledSkills,
   writeSkills,
   writeAgents,
-  writeSharedHooks,
 } from "./shared.js";
 import { getAllAgents, getHooksConfig } from "../templates/cursor/index.js";
 
@@ -17,7 +16,7 @@ import { getAllAgents, getHooksConfig } from "../templates/cursor/index.js";
  * - commands/ — start + finish-work as slash commands (trellis- prefix, flat)
  * - skills/trellis-{name}/SKILL.md — auto-triggered skills from `common/skills/`
  * - agents/{name}.md — sub-agent definitions
- * - hooks/*.py — shared hook scripts
+ * - hooks.json — direct Trellis CLI hook commands
  * - hooks.json — hook configuration (separate file, not settings.json)
  */
 export async function configureCursor(cwd: string): Promise<void> {
@@ -40,8 +39,6 @@ export async function configureCursor(cwd: string): Promise<void> {
     resolveBundledSkills(ctx),
   );
   await writeAgents(path.join(configRoot, "agents"), getAllAgents());
-  await writeSharedHooks(path.join(configRoot, "hooks"), "cursor");
-
   // Hooks config (separate file, not settings.json)
   await writeFile(
     path.join(configRoot, "hooks.json"),

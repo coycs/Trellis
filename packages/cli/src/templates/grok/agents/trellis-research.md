@@ -23,7 +23,7 @@ On Grok Build, the main session launches this agent with:
 ```python
 spawn_subagent(
   subagent_type="trellis-research",
-  prompt="Active task: <path from task.py current>\n..."
+  prompt="Active task: <path from trellis task current>\n..."
 )
 ```
 
@@ -42,7 +42,7 @@ spawn_subagent(
 
 ### Step 1: Resolve Current Task
 
-Run `python3 ./.trellis/scripts/task.py current --source` to get the active task path. Prefer an `Active task: <path>` line in the dispatch prompt when present. If no active task is set, ask the user where to write output; do NOT guess.
+Run `trellis task current --source` to get the active task path. Prefer an `Active task: <path>` line in the dispatch prompt when present. If no active task is set, ask the user where to write output; do NOT guess.
 
 Ensure `{TASK_DIR}/research/` exists before writing findings.
 
@@ -81,7 +81,7 @@ Do NOT paste full research content into the reply. The files are the contract.
 
 - Code files (`src/`, `lib/`, etc.)
 - Spec files (`.trellis/spec/`) - main agent should use the update-spec skill instead
-- `.trellis/scripts/`, `.trellis/workflow.md`, platform config (`.grok/`, `.claude/`, `.cursor/`, etc.)
+- `.trellis/workflow.md`, platform config (`.grok/`, `.claude/`, `.cursor/`, etc.)
 - Other task directories
 - Any git operation
 

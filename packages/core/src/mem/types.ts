@@ -139,12 +139,12 @@ export interface MemProjectSummary {
   by_platform: Record<MemSourceKind, number>;
 }
 
-/** Parsed `task.py create|start` invocation recovered from a raw shell call. */
-export type ParsedTaskPyCommand =
+/** Parsed `trellis task create|start` invocation recovered from a raw shell call. */
+export type ParsedTaskCommand =
   | { action: "create"; slug?: string; titleArg?: string }
   | { action: "start"; taskDir?: string };
 
-export interface TaskPyEvent {
+export interface TaskEvent {
   action: "create" | "start";
   timestamp: string;
   /** Index into the cleaned `DialogueTurn[]` at the time the shell call ran. */

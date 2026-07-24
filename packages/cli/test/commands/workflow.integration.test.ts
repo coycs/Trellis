@@ -33,11 +33,13 @@ vi.mock("node:child_process", () => ({
 
 import { init } from "../../src/commands/init.js";
 import { update } from "../../src/commands/update.js";
-import { runWorkflowCommand, WorkflowCommandError } from "../../src/commands/workflow.js";
+import {
+  runWorkflowCommand,
+  WorkflowCommandError,
+} from "../../src/commands/workflow.js";
 import { PATHS } from "../../src/constants/paths.js";
 import { loadHashes } from "../../src/utils/template-hash.js";
 import { workflowMdTemplate } from "../../src/templates/trellis/index.js";
-import { replacePythonCommandLiterals } from "../../src/configurators/shared.js";
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 const noop = () => {};
@@ -105,9 +107,7 @@ describe("trellis workflow integration", () => {
 
     const wfPath = path.join(tmpDir, PATHS.WORKFLOW_GUIDE_FILE);
     expect(fs.existsSync(wfPath)).toBe(true);
-    expect(fs.readFileSync(wfPath, "utf-8")).toBe(
-      replacePythonCommandLiterals(workflowMdTemplate),
-    );
+    expect(fs.readFileSync(wfPath, "utf-8")).toBe(workflowMdTemplate);
     const hashes = loadHashes(tmpDir);
     expect(hashes[PATHS.WORKFLOW_GUIDE_FILE]).toBeTruthy();
   });
@@ -118,7 +118,7 @@ describe("trellis workflow integration", () => {
 
     const wfPath = path.join(tmpDir, PATHS.WORKFLOW_GUIDE_FILE);
     const written = fs.readFileSync(wfPath, "utf-8");
-    expect(written).toBe(replacePythonCommandLiterals(TDD_CONTENT));
+    expect(written).toBe(TDD_CONTENT);
 
     const hashes = loadHashes(tmpDir);
     expect(hashes[PATHS.WORKFLOW_GUIDE_FILE]).toBeUndefined();
@@ -136,7 +136,8 @@ describe("trellis workflow integration", () => {
         },
       ],
     };
-    const customContent = "# Custom Workflow\n\n## Phase Index\nCustom phase.\n";
+    const customContent =
+      "# Custom Workflow\n\n## Phase Index\nCustom phase.\n";
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: string | URL) => {
@@ -158,9 +159,7 @@ describe("trellis workflow integration", () => {
     } as Record<string, unknown>);
 
     const wfPath = path.join(tmpDir, PATHS.WORKFLOW_GUIDE_FILE);
-    expect(fs.readFileSync(wfPath, "utf-8")).toBe(
-      replacePythonCommandLiterals(customContent),
-    );
+    expect(fs.readFileSync(wfPath, "utf-8")).toBe(customContent);
     expect(loadHashes(tmpDir)[PATHS.WORKFLOW_GUIDE_FILE]).toBeUndefined();
   });
 
@@ -175,9 +174,7 @@ describe("trellis workflow integration", () => {
   it("trellis workflow --template native refreshes hash after switching from tdd", async () => {
     stubMarketplaceFetch();
     await init({ yes: true, workflow: "tdd" } as Record<string, unknown>);
-    expect(
-      loadHashes(tmpDir)[PATHS.WORKFLOW_GUIDE_FILE],
-    ).toBeUndefined();
+    expect(loadHashes(tmpDir)[PATHS.WORKFLOW_GUIDE_FILE]).toBeUndefined();
 
     // Switching FROM a non-native workflow requires --force because the file
     // has no stored hash → the resolver conservatively flags it as "modified",
@@ -185,9 +182,7 @@ describe("trellis workflow integration", () => {
     await runWorkflowCommand({ template: "native", force: true });
 
     const wfPath = path.join(tmpDir, PATHS.WORKFLOW_GUIDE_FILE);
-    expect(fs.readFileSync(wfPath, "utf-8")).toBe(
-      replacePythonCommandLiterals(workflowMdTemplate),
-    );
+    expect(fs.readFileSync(wfPath, "utf-8")).toBe(workflowMdTemplate);
     // Switching back to native re-tracks the hash so update() can manage it.
     expect(loadHashes(tmpDir)[PATHS.WORKFLOW_GUIDE_FILE]).toBeTruthy();
   });
@@ -200,9 +195,7 @@ describe("trellis workflow integration", () => {
     await runWorkflowCommand({ template: "tdd" });
 
     const wfPath = path.join(tmpDir, PATHS.WORKFLOW_GUIDE_FILE);
-    expect(fs.readFileSync(wfPath, "utf-8")).toBe(
-      replacePythonCommandLiterals(TDD_CONTENT),
-    );
+    expect(fs.readFileSync(wfPath, "utf-8")).toBe(TDD_CONTENT);
     expect(loadHashes(tmpDir)[PATHS.WORKFLOW_GUIDE_FILE]).toBeUndefined();
   });
 
@@ -273,9 +266,7 @@ describe("trellis workflow integration", () => {
 
     const newPath = `${wfPath}.new`;
     expect(fs.existsSync(newPath)).toBe(true);
-    expect(fs.readFileSync(newPath, "utf-8")).toBe(
-      replacePythonCommandLiterals(TDD_CONTENT),
-    );
+    expect(fs.readFileSync(newPath, "utf-8")).toBe(TDD_CONTENT);
     // Active workflow file and hash must both be untouched.
     expect(fs.readFileSync(wfPath, "utf-8")).toBe(originalContent);
     expect(loadHashes(tmpDir)[PATHS.WORKFLOW_GUIDE_FILE]).toBe(originalHash);
@@ -295,8 +286,6 @@ describe("trellis workflow integration", () => {
 
     const afterUpdate = fs.readFileSync(wfPath, "utf-8");
     expect(afterUpdate).toBe(beforeUpdate);
-    expect(afterUpdate).not.toBe(
-      replacePythonCommandLiterals(workflowMdTemplate),
-    );
+    expect(afterUpdate).not.toBe(workflowMdTemplate);
   });
 });

@@ -11,9 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 import { AI_TOOLS } from "../src/types/ai-tools.js";
-import {
-  PLATFORM_IDS,
-} from "../src/configurators/index.js";
+import { PLATFORM_IDS } from "../src/configurators/index.js";
 
 const COMMANDER_RESERVED_FLAGS = ["help", "version", "V", "h"];
 
@@ -85,7 +83,6 @@ describe("registry internal consistency", () => {
       expect(config.templateContext.cliFlag).toBe(config.cliFlag);
     }
   });
-
 });
 
 // =============================================================================
@@ -146,19 +143,14 @@ describe("UserPromptSubmit hook wiring", () => {
       const { dirname, join } = await import("node:path");
       const { fileURLToPath } = await import("node:url");
       const __filename = fileURLToPath(import.meta.url);
-      const templatesRoot = join(
-        dirname(__filename),
-        "..",
-        "src",
-        "templates",
-      );
+      const templatesRoot = join(dirname(__filename), "..", "src", "templates");
       const raw = fs.readFileSync(join(templatesRoot, path), "utf-8");
       const parsed = JSON.parse(raw) as {
         hooks?: Record<string, unknown>;
       };
       expect(parsed.hooks).toBeDefined();
       expect(Object.keys(parsed.hooks ?? {})).toContain(event);
-      expect(raw).toContain("inject-workflow-state.py");
+      expect(raw).toContain("trellis hook workflow");
     });
   }
 
@@ -186,12 +178,12 @@ describe("UserPromptSubmit hook wiring", () => {
       };
       if (entry === "trellis.json") {
         expect(Object.keys(parsed.hooks ?? {})).toContain("userPromptSubmit");
-        expect(content).toContain("inject-workflow-state.py");
+        expect(content).toContain("trellis hook workflow --platform kiro");
       } else {
         expect(
           content,
-          `kiro/agents/${entry} (sub-agent) should not wire inject-workflow-state.py`,
-        ).not.toContain("inject-workflow-state.py");
+          `kiro/agents/${entry} (sub-agent) should not wire the workflow hook`,
+        ).not.toContain("trellis hook workflow");
       }
     }
   });

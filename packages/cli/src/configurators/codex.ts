@@ -3,8 +3,6 @@ import path from "node:path";
 import { AI_TOOLS } from "../types/ai-tools.js";
 import {
   getAllAgents,
-  getAllCodexSkills,
-  getAllHooks,
   getConfigTemplate,
   getHooksConfig,
 } from "../templates/codex/index.js";
@@ -14,8 +12,6 @@ import {
   resolveAllAsSkillsNeutral,
   resolveBundledSkills,
   writeSkills,
-  writeSharedHooks,
-  replacePythonCommandLiterals,
 } from "./shared.js";
 
 /**
@@ -145,7 +141,6 @@ export function preserveCodexAgentModelKeys(
 /**
  * Configure Codex by writing:
  * - .agents/skills/ — shared skills from common source
- * - .codex/skills/ — Codex-specific skills (platform-specific templates)
  * - .codex/agents/, hooks/, hooks.json, config.toml — platform-specific
  */
 export async function configureCodex(cwd: string): Promise<void> {
@@ -164,19 +159,6 @@ export async function configureCodex(cwd: string): Promise<void> {
 
   const codexRoot = path.join(cwd, ".codex");
 
-  // Codex-specific skills (platform-specific) → .codex/skills/
-  const codexSkillsRoot = path.join(codexRoot, "skills");
-  ensureDir(codexSkillsRoot);
-
-  for (const skill of getAllCodexSkills()) {
-    const skillDir = path.join(codexSkillsRoot, skill.name);
-    ensureDir(skillDir);
-    await writeFile(
-      path.join(skillDir, "SKILL.md"),
-      replacePythonCommandLiterals(skill.content),
-    );
-  }
-
   // Custom agents → .codex/agents/
   const codexAgentsRoot = path.join(codexRoot, "agents");
   ensureDir(codexAgentsRoot);
@@ -188,31 +170,12 @@ export async function configureCodex(cwd: string): Promise<void> {
   // existing on-disk files before overwriting with the fresh render.
   const agentTomls = new Map<string, string>();
   for (const agent of getAllAgents()) {
-    agentTomls.set(
-      `.codex/agents/${agent.name}.toml`,
-      replacePythonCommandLiterals(agent.content),
-    );
+    agentTomls.set(`.codex/agents/${agent.name}.toml`, agent.content);
   }
   preserveCodexAgentModelKeys(cwd, agentTomls);
   for (const [relPath, content] of agentTomls) {
     await writeFile(path.join(cwd, relPath), content);
   }
-
-  // Hooks → .codex/hooks/
-  const hooksDir = path.join(codexRoot, "hooks");
-  ensureDir(hooksDir);
-
-  // Codex-specific hook files. hooks.json registers UserPromptSubmit for the
-  // main session; SubagentStart is registered for role-specific shared context.
-  for (const hook of getAllHooks()) {
-    await writeFile(
-      path.join(hooksDir, hook.name),
-      replacePythonCommandLiterals(hook.content),
-    );
-  }
-
-  // Shared main-session workflow state plus native SubagentStart context.
-  await writeSharedHooks(hooksDir, "codex");
 
   // Hooks config → .codex/hooks.json
   await writeFile(
@@ -224,10 +187,10 @@ export async function configureCodex(cwd: string): Promise<void> {
   // ~/.codex/config.toml (Codex 0.129+). The legacy `features.codex_hooks = true`
   // still works on 0.129+ but emits a deprecation warning; pre-0.129 only
   // accepts `codex_hooks`. Without this flag the hooks.json is ignored and
-  // inject-workflow-state.py will never fire. Codex 0.129+ also gates each
+  // workflow hooks will never fire. Codex 0.129+ also gates each
   // installed hook behind a one-time `/hooks` review — until the user approves
   // it the workflow breadcrumb won't auto-inject (the trellis-bootstrap
-  // fallback in inject-workflow-state.py covers this case). Documented in
+  // agent pull fallback covers this case). Documented in
   // spec/cli/backend/platform-integration.md.
   if (!process.env.VITEST && !process.env.TRELLIS_QUIET) {
     process.stderr.write(
@@ -242,8 +205,5 @@ export async function configureCodex(cwd: string): Promise<void> {
 
   // Config → .codex/config.toml
   const config = getConfigTemplate();
-  await writeFile(
-    path.join(codexRoot, config.targetPath),
-    replacePythonCommandLiterals(config.content),
-  );
+  await writeFile(path.join(codexRoot, config.targetPath), config.content);
 }

@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} -X utf8 .codex/hooks/inject-workflow-state.py",
+            "command": "trellis hook workflow --platform codex",
             "timeout": 15
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} -X utf8 .codex/hooks/inject-subagent-context.py",
+            "command": "trellis hook subagent --platform codex",
             "timeout": 15
           }
         ]

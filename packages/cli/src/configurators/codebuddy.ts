@@ -8,7 +8,6 @@ import {
   resolveBundledSkills,
   writeSkills,
   writeAgents,
-  writeSharedHooks,
 } from "./shared.js";
 import {
   getAllAgents,
@@ -20,7 +19,7 @@ import {
  * - commands/trellis/ — start + finish-work as slash commands
  * - skills/trellis-{name}/SKILL.md — auto-triggered skills from `common/skills/`
  * - agents/{name}.md — sub-agent definitions
- * - hooks/*.py — shared hook scripts
+ * - settings.json — direct Trellis CLI hook commands
  * - settings.json — hook configuration
  */
 export async function configureCodebuddy(cwd: string): Promise<void> {
@@ -41,8 +40,6 @@ export async function configureCodebuddy(cwd: string): Promise<void> {
     resolveBundledSkills(ctx),
   );
   await writeAgents(path.join(configRoot, "agents"), getAllAgents());
-  await writeSharedHooks(path.join(configRoot, "hooks"), "codebuddy");
-
   const settings = getSettingsTemplate();
   await writeFile(
     path.join(configRoot, settings.targetPath),

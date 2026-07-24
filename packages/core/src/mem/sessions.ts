@@ -51,7 +51,7 @@ import type {
   MemWarning,
   SearchHit,
   SearchMemSessionsOptions,
-  TaskPyEvent,
+  TaskEvent,
 } from "./types.js";
 
 /** Internal wide limit — `limit` only caps display; search recall and session
@@ -146,7 +146,7 @@ function collectTurnsAndEvents(
   warnings: MemWarning[] = [],
 ): {
   turns: DialogueTurn[];
-  events: TaskPyEvent[];
+  events: TaskEvent[];
 } {
   switch (s.platform) {
     case "claude":
@@ -252,7 +252,7 @@ function sliceMemPhase(
     if (windows.length === 0) {
       warnings.push({
         code: "no-brainstorm-boundary",
-        message: `no task.py create/start boundary found in session — returning full dialogue.`,
+        message: `no trellis task create/start boundary found in session — returning full dialogue.`,
       });
       return {
         groups: [{ label: null, turns }],
@@ -272,7 +272,7 @@ function sliceMemPhase(
   if (windows.length === 0) {
     warnings.push({
       code: "no-brainstorm-boundary",
-      message: `no task.py create/start boundary found in session — implement phase is empty.`,
+      message: `no trellis task create/start boundary found in session — implement phase is empty.`,
     });
     return {
       groups: [{ label: null, turns: [] }],

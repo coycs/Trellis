@@ -46,7 +46,7 @@ You are already the `trellis-check` sub-agent that the main session dispatched. 
 On Snow CLI (class-1), the main session launches this agent with a full-context prompt. Always start the prompt with:
 
 ```text
-Active task: <path from task.py current>
+Active task: <path from trellis task current>
 ```
 
 - Session/user hooks inject Trellis context into the main session.

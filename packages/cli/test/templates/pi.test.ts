@@ -47,7 +47,10 @@ interface PiExtensionInternals {
   trellisExtension: (pi: {
     registerTool?: (tool: unknown) => void;
     registerShortcut?: (key: string, opts: unknown) => void;
-    on?: (event: string, handler: (event: unknown, ctx?: unknown) => unknown) => void;
+    on?: (
+      event: string,
+      handler: (event: unknown, ctx?: unknown) => unknown,
+    ) => void;
   }) => void;
   truncateUtf8: (buf: Buffer, cap: number) => Buffer;
   readContextInjectionLimits: (repoRoot: string) => ContextInjectionLimits;
@@ -175,13 +178,13 @@ describe("pi templates", () => {
     const templates = collectPiTemplates();
 
     expect(templates.get(".pi/prompts/trellis-start.md")).toContain(
-      "# Start Session",
+      "# Start Trellis",
     );
     expect(templates.get(".pi/prompts/trellis-continue.md")).toContain(
-      "get_context.py --mode phase",
+      "trellis context --mode phase",
     );
     expect(templates.get(".pi/prompts/trellis-finish-work.md")).toContain(
-      "finish-work",
+      "trellis task archive",
     );
   });
 
@@ -194,9 +197,7 @@ describe("pi templates", () => {
 
     // Schema must declare the three dispatch modes and the thinking enum so the LLM
     // can pick a valid mode and override thinking per call.
-    expect(extension).toContain(
-      'enum: ["single", "parallel", "chain"]',
-    );
+    expect(extension).toContain('enum: ["single", "parallel", "chain"]');
     expect(extension).toContain(
       'enum: ["off", "minimal", "low", "medium", "high", "xhigh"]',
     );
@@ -287,12 +288,9 @@ describe("pi templates", () => {
     expect(first.systemPrompt).not.toContain(
       "Trellis SessionStart 已注入：workflow、当前任务状态、开发者身份、git 状态、active tasks、spec 索引已加载。",
     );
-    expect(first.systemPrompt).toContain("<trellis-workflow>");
-    expect(first.systemPrompt).toContain("Phase 1: Plan");
+    expect(first.systemPrompt).not.toContain(".py");
     expect(first.systemPrompt).toContain("No active Trellis task found");
     expect(first.systemPrompt).not.toContain("<workflow-state>");
-    // The system prompt carries startup's session-overview snapshot.
-    expect(first.systemPrompt).toContain("<session-overview>");
     expect(first.message).toEqual(
       expect.objectContaining({
         customType: "trellis-runtime-context",
@@ -307,7 +305,6 @@ describe("pi templates", () => {
     );
     expect(first.message.content).toContain("<workflow-state>");
     expect(first.message.content).toContain("Status: no_task");
-    expect(first.message.content).toContain("<session-overview>");
 
     const second = beforeAgentStart?.(
       {
@@ -381,7 +378,13 @@ describe("pi templates", () => {
       recursive: true,
     });
     writeFileSync(
-      join(root, ".trellis", ".runtime", "sessions", "pi_pi-unit-task-update.json"),
+      join(
+        root,
+        ".trellis",
+        ".runtime",
+        "sessions",
+        "pi_pi-unit-task-update.json",
+      ),
       JSON.stringify({ current_task: "tasks/07-07-cache-fix" }),
     );
 
@@ -476,7 +479,9 @@ fallbackModels:
     const { buildPiArgs } = loadExtensionInternals();
 
     // model + thinking → composes "model:thinking" suffix when not already present
-    expect(buildPiArgs({ model: "anthropic/claude-sonnet-4", thinking: "high" })).toEqual([
+    expect(
+      buildPiArgs({ model: "anthropic/claude-sonnet-4", thinking: "high" }),
+    ).toEqual([
       "--mode",
       "json",
       "-p",
@@ -542,11 +547,12 @@ fallbackModels:
 
     // Per-call model + thinking win over agent config
     expect(
-      resolveRunCfg(
-        { model: "openai/gpt-5", thinking: "xhigh" },
-        agentCfg,
-      ),
-    ).toEqual({ model: "openai/gpt-5:xhigh", thinking: "xhigh", tools: agentCfg.tools });
+      resolveRunCfg({ model: "openai/gpt-5", thinking: "xhigh" }, agentCfg),
+    ).toEqual({
+      model: "openai/gpt-5:xhigh",
+      thinking: "xhigh",
+      tools: agentCfg.tools,
+    });
 
     // No overrides → fall back to agent config
     expect(resolveRunCfg({}, agentCfg)).toEqual({
@@ -557,11 +563,7 @@ fallbackModels:
 
     // Inherited thinking is the last fallback
     expect(
-      resolveRunCfg(
-        {},
-        { model: "gpt-5", fallbackModels: [] },
-        "medium",
-      ),
+      resolveRunCfg({}, { model: "gpt-5", fallbackModels: [] }, "medium"),
     ).toEqual({ model: "gpt-5:medium", thinking: "medium" });
   });
 
@@ -749,9 +751,7 @@ describe("pi extension: context injection limits (issue #441)", () => {
       mkdirSync(join(root, ".trellis"), { recursive: true });
       writeConfig(
         root,
-        ["context_injection:", "  max_artifact_bytes: not-a-number"].join(
-          "\n",
-        ),
+        ["context_injection:", "  max_artifact_bytes: not-a-number"].join("\n"),
       );
       const { readContextInjectionLimits } = loadExtensionInternals();
       expect(readContextInjectionLimits(root).max_artifact_bytes).toBe(65536);
@@ -780,7 +780,11 @@ describe("pi extension: context injection limits (issue #441)", () => {
     it("truncates an oversized jsonl-referenced file at max_file_bytes with a notice", () => {
       const root = createRoot();
       const taskDir = activateTask(root, "task-oversize");
-      writeFileSync(join(root, "big.txt"), "A".repeat(2 * 1024 * 1024), "utf-8");
+      writeFileSync(
+        join(root, "big.txt"),
+        "A".repeat(2 * 1024 * 1024),
+        "utf-8",
+      );
       writeFileSync(
         join(taskDir, "implement.jsonl"),
         JSON.stringify({ file: "big.txt", reason: "big" }) + "\n",

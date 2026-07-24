@@ -19,7 +19,7 @@ Conversations get compacted; files don't. Every research output MUST end up as a
 
 ## Dispatch note (main session)
 
-Kimi Code has no project-level custom sub-agent definitions — only the built-in `coder` / `explore` / `plan` sub-agents. The main session dispatches the built-in `explore` sub-agent via the Agent tool with a prompt that starts with `Active task: <path from task.py current>` and includes this skill's instructions (`.kimi-code/skills/trellis-research/SKILL.md`).
+Kimi Code has no project-level custom sub-agent definitions — only the built-in `coder` / `explore` / `plan` sub-agents. The main session dispatches the built-in `explore` sub-agent via the Agent tool with a prompt that starts with `Active task: <path from trellis task current>` and includes this skill's instructions (`.kimi-code/skills/trellis-research/SKILL.md`).
 
 ---
 
@@ -36,7 +36,7 @@ Kimi Code has no project-level custom sub-agent definitions — only the built-i
 
 ### Step 1: Resolve Current Task
 
-Run `python3 ./.trellis/scripts/task.py current --source` to get the active task path. Prefer an `Active task: <path>` line in the dispatch prompt when present. If no active task is set, ask the user where to write output; do NOT guess.
+Run `trellis task current --source` to get the active task path. Prefer an `Active task: <path>` line in the dispatch prompt when present. If no active task is set, ask the user where to write output; do NOT guess.
 
 Ensure `{TASK_DIR}/research/` exists before writing findings.
 
@@ -75,7 +75,7 @@ Do NOT paste full research content into the reply. The files are the contract.
 
 - Code files (`src/`, `lib/`, etc.)
 - Spec files (`.trellis/spec/`) - main agent should use the update-spec skill instead
-- `.trellis/scripts/`, `.trellis/workflow.md`, platform config (`.kimi-code/`, `.claude/`, `.cursor/`, etc.)
+- `.trellis/workflow.md`, platform config (`.kimi-code/`, `.claude/`, `.cursor/`, etc.)
 - Other task directories
 - Any git operation
 

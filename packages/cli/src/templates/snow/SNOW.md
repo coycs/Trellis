@@ -64,8 +64,8 @@ Hook modes (same script, different depth):
 
 | Hook                  | argv mode  | Payload                                                          |
 | --------------------- | ---------- | ---------------------------------------------------------------- |
-| `onSessionStart`      | `session`  | full (~7.5KB): task.py, artifacts, prd summary, workflow/session |
-| `onUserMessage`       | `user`     | compact (~2.8KB): task.py + artifact presence only               |
+| `onSessionStart`      | `session`  | full (~7.5KB): trellis task, artifacts, prd summary, workflow/session |
+| `onUserMessage`       | `user`     | compact (~2.8KB): trellis task + artifact presence only               |
 | `beforeSubAgentStart` | `subagent` | full + agent-kind tailoring (implement/check/research)           |
 
 ## Session identity (multi-session)
@@ -82,5 +82,5 @@ Snow injects these env vars into hook commands, `terminal-execute`, bash mode, a
 Notes:
 
 - `TRELLIS_CONTEXT_ID` wins when already set (explicit override).
-- Otherwise Trellis resolves `SNOW_SESSION_ID` via `active_task.py` as platform `snow`.
+- Otherwise Trellis resolves `SNOW_SESSION_ID` via `active_trellis task` as platform `snow`.
 - Hook stdin may also include dual keys: `sessionId` / `session_id`.

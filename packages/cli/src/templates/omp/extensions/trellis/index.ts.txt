@@ -242,17 +242,14 @@ function resolveActiveTaskStatus(
 }
 
 // ---------------------------------------------------------------------------
-// Session context — spawns get_context.py default mode (same as Claude hook)
+// Session context — delegates to the central Trellis CLI
 // ---------------------------------------------------------------------------
 
 const SESSION_CONTEXT_TIMEOUT_MS = 5000;
 
 function buildSessionContext(projectRoot: string, contextKey: string | null): string {
-   const script = join(projectRoot, ".trellis", "scripts", "get_context.py");
-   if (!existsSync(script)) return "";
-
    try {
-      const result = spawnSync("python3", [script], {
+      const result = spawnSync("trellis", ["context"], {
          cwd: projectRoot,
          encoding: "utf-8",
          env: contextKey
@@ -260,6 +257,7 @@ function buildSessionContext(projectRoot: string, contextKey: string | null): st
             : process.env,
          timeout: SESSION_CONTEXT_TIMEOUT_MS,
          windowsHide: true,
+         shell: process.platform === "win32",
       });
       if (result.status !== 0 || !result.stdout?.trim()) {
          return "";

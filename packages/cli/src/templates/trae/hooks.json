@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .trae/hooks/session-start.py",
+            "command": "trellis hook session --platform trae",
             "timeout": 30
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .trae/hooks/inject-workflow-state.py",
+            "command": "trellis hook workflow --platform trae",
             "timeout": 15
           }
         ]

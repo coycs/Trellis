@@ -38,7 +38,8 @@ describe("grok pull-based prelude injection", () => {
         agent.name === "trellis-check"
       ) {
         expect(agent.content).toContain("Load Trellis Context First");
-        expect(agent.content).toContain("task.py current --source");
+        expect(agent.content).toContain("trellis task current");
+        expect(agent.content).not.toContain(".py");
       }
     }
   });

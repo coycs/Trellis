@@ -43,7 +43,7 @@ Conversations get compacted; files don't. Every research output MUST end up as a
 On Snow CLI (class-1), project agents under `.snow/agents/` are auto-discovered. Prefer starting the prompt with:
 
 ```text
-Active task: <path from task.py current>
+Active task: <path from trellis task current>
 ```
 
 - Session/user hooks inject Trellis context into the main session.
@@ -68,7 +68,7 @@ Prefer `#trellis-research` / picker dispatch with Active task path in the prompt
 
 ### Step 1: Resolve Current Task
 
-Run `python3 ./.trellis/scripts/task.py current --source` via `terminal-execute` → active task path. If no active task is set, ask the user where to write output; do NOT guess.
+Run `trellis task current --source` via `terminal-execute` → active task path. If no active task is set, ask the user where to write output; do NOT guess.
 
 Ensure `{TASK_DIR}/research/` exists.
 
@@ -107,7 +107,7 @@ Do NOT paste full research content into the reply. The files are the contract.
 
 - Code files (`src/`, `lib/`, …)
 - Spec files (`.trellis/spec/`) — main agent should use `update-spec` skill instead
-- `.trellis/scripts/`, `.trellis/workflow.md`, platform config (`.snow/`, `.claude/`, etc.)
+- `.trellis/workflow.md`, platform config (`.snow/`, `.claude/`, etc.)
 - Other task directories
 - Any git operation (commit / push / branch / merge)
 

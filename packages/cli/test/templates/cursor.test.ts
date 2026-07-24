@@ -27,7 +27,11 @@ describe("cursor getAllAgents", () => {
 // the agent becomes unusable. See PRD task
 // 05-06-fix-codex-subagent-recursion-and-cursor-agent-description-format.
 describe("cursor agents frontmatter single-line description", () => {
-  for (const name of ["trellis-research", "trellis-implement", "trellis-check"]) {
+  for (const name of [
+    "trellis-research",
+    "trellis-implement",
+    "trellis-check",
+  ]) {
     it(`${name}.md frontmatter description is a single-line literal (no '|' block scalar)`, () => {
       const filePath = path.join(
         repoRoot,
@@ -35,7 +39,7 @@ describe("cursor agents frontmatter single-line description", () => {
         `${name}.md`,
       );
       const content = fs.readFileSync(filePath, "utf-8");
-      const fm = content.split("---\n")[1] ?? "";
+      const fm = content.split(/---\r?\n/)[1] ?? "";
 
       // Block-scalar markers must be absent on the description line.
       expect(fm).not.toMatch(/^description:\s*\|\s*$/m);

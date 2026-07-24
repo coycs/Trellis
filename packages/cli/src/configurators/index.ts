@@ -42,7 +42,6 @@ import { configureSnow, collectSnowTemplates } from "./snow.js";
 
 // Shared utilities
 import {
-  replacePythonCommandLiterals,
   resolvePlaceholders,
   resolveAllAsSkills,
   resolveAllAsSkillsNeutral,
@@ -54,7 +53,6 @@ import {
   collectSkillTemplates,
   applyPullBasedPreludeMarkdown,
   normalizeCopilotMarkdownAgents,
-  type PlatformConfigureOptions,
 } from "./shared.js";
 
 // Platform-specific template content (hooks, agents, settings — NOT commands/skills)
@@ -64,13 +62,10 @@ import {
 } from "../templates/claude/index.js";
 import {
   getAllAgents as getCodexAgents,
-  getAllCodexSkills as getCodexPlatformSkills,
-  getAllHooks as getCodexHooks,
   getConfigTemplate as getCodexConfigTemplate,
   getHooksConfig as getCodexHooksConfig,
 } from "../templates/codex/index.js";
 import {
-  getAllHooks as getCopilotHooks,
   getCopilotInstructions,
   getHooksConfig as getCopilotHooksConfig,
   COPILOT_INSTRUCTIONS_PATH,
@@ -103,10 +98,6 @@ import {
   getAllAgents as getKiroAgents,
   getIdeHooks as getKiroIdeHooks,
 } from "../templates/kiro/index.js";
-import {
-  getSharedHookScriptsForPlatform,
-  type SharedHookPlatform,
-} from "../templates/shared-hooks/index.js";
 
 // =============================================================================
 // Platform Functions Registry
@@ -114,7 +105,7 @@ import {
 
 interface PlatformFunctions {
   /** Configure platform during init (copy templates to project) */
-  configure: (cwd: string, options?: PlatformConfigureOptions) => Promise<void>;
+  configure: (cwd: string) => Promise<void>;
   /** Collect template files for update tracking. Undefined = platform skipped during update. */
   collectTemplates?: () => Map<string, string>;
 }
@@ -123,30 +114,6 @@ interface PlatformFunctions {
  * Platform functions registry — maps each AITool to its behavior.
  * When adding a new platform, add an entry here.
  */
-/** Helper: collect the shared hook scripts that `platform` actually
- *  registers. Keyed off SHARED_HOOKS_BY_PLATFORM so runtime install
- *  (writeSharedHooks) and update diff (collectSharedHooks) never drift.
- */
-function collectSharedHooks(
-  hooksPath: string,
-  platform: SharedHookPlatform,
-): Map<string, string> {
-  const files = new Map<string, string>();
-  for (const hook of getSharedHookScriptsForPlatform(platform)) {
-    files.set(`${hooksPath}/${hook.name}`, hook.content);
-  }
-  return files;
-}
-
-/** Apply python3→python replacement to all content in a template map. */
-function replaceInMap(map: Map<string, string>): Map<string, string> {
-  const result = new Map<string, string>();
-  for (const [key, content] of map) {
-    result.set(key, replacePythonCommandLiterals(content));
-  }
-  return result;
-}
-
 /** Helper: collect commands + skills for "both" platforms */
 function collectBothTemplates(
   ctx: import("../types/ai-tools.js").TemplateContext,
@@ -182,9 +149,6 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
       for (const agent of getClaudeAgents()) {
         files.set(`.claude/agents/${agent.name}.md`, agent.content);
       }
-      for (const [k, v] of collectSharedHooks(".claude/hooks", "claude")) {
-        files.set(k, v);
-      }
       const settings = getClaudeSettings();
       files.set(
         `.claude/${settings.targetPath}`,
@@ -203,9 +167,6 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
       );
       for (const agent of getCursorAgents()) {
         files.set(`.cursor/agents/${agent.name}.md`, agent.content);
-      }
-      for (const [k, v] of collectSharedHooks(".cursor/hooks", "cursor")) {
-        files.set(k, v);
       }
       files.set(
         ".cursor/hooks.json",
@@ -230,18 +191,8 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
       )) {
         files.set(filePath, content);
       }
-      for (const skill of getCodexPlatformSkills()) {
-        files.set(`.codex/skills/${skill.name}/SKILL.md`, skill.content);
-      }
       for (const agent of getCodexAgents()) {
         files.set(`.codex/agents/${agent.name}.toml`, agent.content);
-      }
-      for (const hook of getCodexHooks()) {
-        files.set(`.codex/hooks/${hook.name}`, hook.content);
-      }
-      // Shared hooks (inject-workflow-state.py only) — mirror configureCodex
-      for (const [k, v] of collectSharedHooks(".codex/hooks", "codex")) {
-        files.set(k, v);
       }
       files.set(
         ".codex/hooks.json",
@@ -279,9 +230,6 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
           resolvePlaceholders(agent.content),
         );
       }
-      for (const [k, v] of collectSharedHooks(".kiro/hooks", "kiro")) {
-        files.set(k, v);
-      }
       for (const hook of getKiroIdeHooks()) {
         files.set(
           `.kiro/hooks/${hook.name}`,
@@ -312,9 +260,6 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
       }
       for (const agent of applyPullBasedPreludeMarkdown(getGeminiAgents())) {
         files.set(`.gemini/agents/${agent.name}.md`, agent.content);
-      }
-      for (const [k, v] of collectSharedHooks(".gemini/hooks", "gemini")) {
-        files.set(k, v);
       }
       files.set(
         ".gemini/settings.json",
@@ -356,9 +301,6 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
       for (const agent of applyPullBasedPreludeMarkdown(getQoderAgents())) {
         files.set(`.qoder/agents/${agent.name}.md`, agent.content);
       }
-      for (const [k, v] of collectSharedHooks(".qoder/hooks", "qoder")) {
-        files.set(k, v);
-      }
       const settings = getQoderSettings();
       files.set(
         `.qoder/${settings.targetPath}`,
@@ -377,12 +319,6 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
       );
       for (const agent of getCodebuddyAgents()) {
         files.set(`.codebuddy/agents/${agent.name}.md`, agent.content);
-      }
-      for (const [k, v] of collectSharedHooks(
-        ".codebuddy/hooks",
-        "codebuddy",
-      )) {
-        files.set(k, v);
       }
       const settings = getCodebuddySettings();
       files.set(
@@ -406,18 +342,6 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
         resolveBundledSkills(ctx),
       )) {
         files.set(filePath, content);
-      }
-      // Copilot's own session-start hook
-      for (const hook of getCopilotHooks()) {
-        files.set(`.github/copilot/hooks/${hook.name}`, hook.content);
-      }
-      // Shared hooks (inject-workflow-state.py only). Copilot bundles its own
-      // session-start.py above; sub-agent context is pull-based (class-2).
-      for (const [k, v] of collectSharedHooks(
-        ".github/copilot/hooks",
-        "copilot",
-      )) {
-        files.set(k, v);
       }
       // Agents: reuse Cursor content + prepend pull-based prelude, then
       // normalize Cursor's Claude-style tools frontmatter for Copilot.
@@ -443,9 +367,6 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
       );
       for (const droid of getDroidDroids()) {
         files.set(`.factory/droids/${droid.name}.md`, droid.content);
-      }
-      for (const [k, v] of collectSharedHooks(".factory/hooks", "droid")) {
-        files.set(k, v);
       }
       const settings = getDroidSettings();
       files.set(
@@ -481,9 +402,6 @@ const PLATFORM_FUNCTIONS: Record<AITool, PlatformFunctions> = {
       );
       for (const agent of applyPullBasedPreludeMarkdown(getTraeAgents())) {
         files.set(`.trae/agents/${agent.name}.md`, agent.content);
-      }
-      for (const [k, v] of collectSharedHooks(".trae/hooks", "trae")) {
-        files.set(k, v);
       }
       const settings = getTraeSettings();
       files.set(
@@ -553,13 +471,6 @@ export function getConfiguredPlatforms(cwd: string): Set<AITool> {
 }
 
 /**
- * Get platform IDs that have Python hooks (for Windows encoding detection)
- */
-export function getPlatformsWithPythonHooks(): AITool[] {
-  return PLATFORM_IDS.filter((id) => AI_TOOLS[id].hasPythonHooks);
-}
-
-/**
  * Check if a path starts with any managed directory
  */
 export function isManagedPath(dirPath: string): boolean {
@@ -590,9 +501,8 @@ export function getPlatformManagedPaths(platformId: AITool): string[] {
 export function configurePlatform(
   platformId: AITool,
   cwd: string,
-  options?: PlatformConfigureOptions,
 ): Promise<void> {
-  return PLATFORM_FUNCTIONS[platformId].configure(cwd, options);
+  return PLATFORM_FUNCTIONS[platformId].configure(cwd);
 }
 
 /**
@@ -602,8 +512,7 @@ export function configurePlatform(
 export function collectPlatformTemplates(
   platformId: AITool,
 ): Map<string, string> | undefined {
-  const map = PLATFORM_FUNCTIONS[platformId].collectTemplates?.();
-  return map ? replaceInMap(map) : map;
+  return PLATFORM_FUNCTIONS[platformId].collectTemplates?.();
 }
 
 /**

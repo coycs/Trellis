@@ -43,7 +43,8 @@ function loadOmpExtension(): OmpExtension {
   });
   vm.runInContext(compiled, sandbox);
   const extension = moduleObject.exports.default;
-  if (!extension) throw new Error("OMP extension template has no default export");
+  if (!extension)
+    throw new Error("OMP extension template has no default export");
   return extension;
 }
 
@@ -92,16 +93,13 @@ describe("omp templates", () => {
     expect(extension).not.toContain("process.env.TRELLIS_CONTEXT_ID =");
     expect(extension).toContain('buildContextKey("omp", "session", sessionId)');
     expect(extension).toContain("realpathSync");
-    expect(extension).toContain("resolveProjectFile(projectRoot, file, trustedRoots)");
+    expect(extension).toContain(
+      "resolveProjectFile(projectRoot, file, trustedRoots)",
+    );
     expect(extension).toContain("readFileSync(targetPath");
     expect(extension).toContain("if (!key) return null;");
     expect(extension).toContain("return key;");
-    expect(extension).toContain(`if (existsSync(candidate)) {
-         sessionFilePath = candidate;
-      } else {
-         return { status: "no_task", taskDir: null, taskTitle: null };
-      }
-   } else {`);
+    expect(extension).toContain("if (existsSync(candidate))");
     expect(extension).toContain(
       "No identity: use single-session fallback only when there is exactly one session file.",
     );
@@ -112,12 +110,17 @@ describe("omp templates", () => {
     const handler = captureOmpHandlers().get("tool_call");
     if (!handler) throw new Error("OMP extension did not register tool_call");
     const params: { command: string; env?: Record<string, string> } = {
-      command: "python3 ./.trellis/scripts/task.py current",
+      command: "trellis task current",
       env: { EXISTING: "kept" },
     };
 
     handler(
-      { type: "tool_call", toolName: "bash", toolCallId: "call-1", input: params },
+      {
+        type: "tool_call",
+        toolName: "bash",
+        toolCallId: "call-1",
+        input: params,
+      },
       { sessionManager: { getSessionId: () => "session/a" } },
     );
 
@@ -128,15 +131,19 @@ describe("omp templates", () => {
   it("preserves an explicit Bash env override and leaves inline assignments untouched", () => {
     const handler = captureOmpHandlers().get("tool_call");
     if (!handler) throw new Error("OMP extension did not register tool_call");
-    const command =
-      "TRELLIS_CONTEXT_ID=inline python3 ./.trellis/scripts/task.py current";
+    const command = "TRELLIS_CONTEXT_ID=inline trellis task current";
     const params: { command: string; env?: Record<string, string> } = {
       command,
       env: { TRELLIS_CONTEXT_ID: "explicit" },
     };
 
     handler(
-      { type: "tool_call", toolName: "bash", toolCallId: "call-2", input: params },
+      {
+        type: "tool_call",
+        toolName: "bash",
+        toolCallId: "call-2",
+        input: params,
+      },
       { sessionManager: { getSessionId: () => "session/b" } },
     );
 
@@ -150,7 +157,12 @@ describe("omp templates", () => {
     const params: Record<string, unknown> = { path: "README.md" };
 
     handler(
-      { type: "tool_call", toolName: "read", toolCallId: "call-3", input: params },
+      {
+        type: "tool_call",
+        toolName: "read",
+        toolCallId: "call-3",
+        input: params,
+      },
       { sessionManager: { getSessionId: () => "session/c" } },
     );
 
@@ -159,10 +171,11 @@ describe("omp templates", () => {
 
   it("extension template contains session context injection markers", () => {
     const extension = getExtensionTemplate();
-    // R1: Session start rich injection via get_context.py
+    // Session context is delegated to the central TypeScript CLI.
     expect(extension).toContain("buildSessionContext");
     expect(extension).toContain("trellis-session-context");
-    expect(extension).toContain("get_context.py");
+    expect(extension).toContain('spawnSync("trellis", ["context"]');
+    expect(extension).not.toContain(".py");
     expect(extension).toContain("session-context");
   });
 

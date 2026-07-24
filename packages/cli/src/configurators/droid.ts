@@ -8,7 +8,6 @@ import {
   resolveBundledSkills,
   writeSkills,
   writeAgents,
-  writeSharedHooks,
 } from "./shared.js";
 import { getAllDroids, getSettingsTemplate } from "../templates/droid/index.js";
 
@@ -17,7 +16,7 @@ import { getAllDroids, getSettingsTemplate } from "../templates/droid/index.js";
  * - commands/trellis/ — start + finish-work as slash commands
  * - skills/trellis-{name}/SKILL.md — auto-triggered skills from `common/skills/`
  * - droids/{name}.md — sub-agent definitions (Droid calls them "droids")
- * - hooks/*.py — shared hook scripts
+ * - settings.json — direct Trellis CLI hook commands
  * - settings.json — hook configuration
  */
 export async function configureDroid(cwd: string): Promise<void> {
@@ -38,8 +37,6 @@ export async function configureDroid(cwd: string): Promise<void> {
     resolveBundledSkills(ctx),
   );
   await writeAgents(path.join(configRoot, "droids"), getAllDroids());
-  await writeSharedHooks(path.join(configRoot, "hooks"), "droid");
-
   const settings = getSettingsTemplate();
   await writeFile(
     path.join(configRoot, settings.targetPath),

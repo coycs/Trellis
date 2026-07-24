@@ -39,7 +39,8 @@ describe("kimi pull-based prelude injection", () => {
         agent.name === "trellis-check"
       ) {
         expect(agent.content).toContain("Load Trellis Context First");
-        expect(agent.content).toContain("task.py current --source");
+        expect(agent.content).toContain("trellis task current");
+        expect(agent.content).not.toContain(".py");
       }
     }
   });
@@ -70,9 +71,7 @@ describe("kimi collectKimiTemplates", () => {
       true,
     );
     expect(files.has(".kimi-code/skills/trellis-check/SKILL.md")).toBe(true);
-    expect(files.has(".kimi-code/skills/trellis-research/SKILL.md")).toBe(
-      true,
-    );
+    expect(files.has(".kimi-code/skills/trellis-research/SKILL.md")).toBe(true);
 
     const implement = files.get(".kimi-code/skills/trellis-implement/SKILL.md");
     expect(implement).toContain("Load Trellis Context First");

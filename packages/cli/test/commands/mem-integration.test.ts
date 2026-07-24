@@ -101,7 +101,7 @@ function seedPiPhaseSession(): string {
             {
               type: "toolCall",
               name: "shell",
-              arguments: { command: "task.py create --slug pi-cli" },
+              arguments: { command: "trellis task create --slug pi-cli" },
             },
           ],
         },
@@ -120,7 +120,7 @@ function seedPiPhaseSession(): string {
         timestamp: "2026-06-18T11:00:04.000Z",
         message: {
           role: "bashExecution",
-          command: "task.py start .trellis/tasks/06-18-pi-cli",
+          command: "trellis task start .trellis/tasks/06-18-pi-cli",
           output: "",
         },
       },
@@ -428,8 +428,7 @@ describe("runMem subcommand integration", () => {
               type: "tool_use",
               name: "Bash",
               input: {
-                command:
-                  "python3 ./.trellis/scripts/task.py create --slug demo",
+                command: "trellis task create --slug demo",
               },
             },
           ],
@@ -453,8 +452,7 @@ describe("runMem subcommand integration", () => {
               type: "tool_use",
               name: "Bash",
               input: {
-                command:
-                  "python3 ./.trellis/scripts/task.py start .trellis/tasks/demo",
+                command: "trellis task start .trellis/tasks/demo",
               },
             },
           ],
@@ -586,7 +584,7 @@ describe("runMem subcommand integration", () => {
       "brainstorm",
     ]);
     const errsJoined = errs.join("\n");
-    expect(errsJoined).toMatch(/no task\.py create\/start boundary/);
+    expect(errsJoined).toMatch(/no trellis task create\/start boundary/);
     const joined = logs.join("\n");
     expect(joined).toContain("memory leak");
   });
@@ -602,7 +600,7 @@ describe("runMem subcommand integration", () => {
       "--json",
     ]);
     const errsJoined = errs.join("\n");
-    expect(errsJoined).toMatch(/no task\.py create\/start boundary/);
+    expect(errsJoined).toMatch(/no trellis task create\/start boundary/);
     const parsed = JSON.parse(logs.join("\n")) as {
       turns: unknown[];
       windows: unknown[];

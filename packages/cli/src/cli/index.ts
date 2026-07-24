@@ -12,6 +12,9 @@ import {
   WorkflowCommandError,
 } from "../commands/workflow.js";
 import { registerChannelCommand } from "../commands/channel/index.js";
+import { registerTaskCommand } from "../commands/task.js";
+import { registerContextCommand } from "../commands/context.js";
+import { registerHookCommand } from "../commands/hook.js";
 import { DIR_NAMES } from "../constants/paths.js";
 import { PACKAGE_NAME, VERSION } from "../constants/version.js";
 import { compareVersions } from "../utils/compare-versions.js";
@@ -92,10 +95,6 @@ program
   .option("--grok", "Include Grok Build skills and agents")
   .option("--kimi", "Include Kimi Code skills")
   .option("--snow", "Include Snow CLI skills and commands")
-  .option(
-    "--with-statusline",
-    "Install the Trellis statusLine for Claude Code (off by default)",
-  )
   .option("-y, --yes", "Skip prompts and use defaults")
   .option(
     "-u, --user <name>",
@@ -345,5 +344,8 @@ program
   });
 
 registerChannelCommand(program);
+registerTaskCommand(program);
+registerContextCommand(program);
+registerHookCommand(program);
 
 program.parse();

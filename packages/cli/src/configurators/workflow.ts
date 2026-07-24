@@ -1,7 +1,6 @@
 import path from "node:path";
 
 import { DIR_NAMES, PATHS } from "../constants/paths.js";
-import { copyTrellisDir } from "../templates/extract.js";
 
 // Import trellis templates (generic, not project-specific)
 import {
@@ -13,7 +12,6 @@ import {
 
 // Import markdown templates
 import {
-  agentProgressIndexContent,
   // Backend structure (multi-doc)
   backendIndexContent,
   backendDirectoryStructureContent,
@@ -36,7 +34,6 @@ import {
 } from "../templates/markdown/index.js";
 
 import { writeFile, ensureDir } from "../utils/file-writer.js";
-import { replacePythonCommandLiterals } from "./shared.js";
 import {
   sanitizePkgName,
   type ProjectType,
@@ -74,11 +71,9 @@ export interface WorkflowOptions {
  * Create workflow structure based on project type
  *
  * This function creates the .trellis/ directory structure by:
- * 1. Copying scripts/ directory directly (dogfooding)
- * 2. Copying workflow.md and .gitignore (dogfooding)
- * 3. Creating workspace/ with index.md
- * 4. Creating tasks/ directory
- * 5. Creating spec/ with templates (not dogfooded - generic templates)
+ * 1. Copying workflow.md and .gitignore
+ * 2. Creating tasks/
+ * 3. Creating spec/ with templates
  *
  * @param cwd - Current working directory
  * @param options - Workflow options including project type
@@ -96,16 +91,8 @@ export async function createWorkflowStructure(
   // Create base .trellis directory
   ensureDir(path.join(cwd, DIR_NAMES.WORKFLOW));
 
-  // Copy scripts/ directory from templates
-  await copyTrellisDir("scripts", path.join(cwd, PATHS.SCRIPTS), {
-    executable: true,
-  });
-
   // Copy workflow.md (native bundled template or selected marketplace variant)
-  await writeFile(
-    path.join(cwd, PATHS.WORKFLOW_GUIDE_FILE),
-    replacePythonCommandLiterals(workflowMd),
-  );
+  await writeFile(path.join(cwd, PATHS.WORKFLOW_GUIDE_FILE), workflowMd);
 
   // Copy .gitignore from templates
   await writeFile(
@@ -129,13 +116,6 @@ export async function createWorkflowStructure(
   for (const [agentFile, content] of getAllAgents()) {
     await writeFile(path.join(cwd, PATHS.AGENTS, agentFile), content);
   }
-
-  // Create workspace/ with index.md
-  ensureDir(path.join(cwd, PATHS.WORKSPACE));
-  await writeFile(
-    path.join(cwd, PATHS.WORKSPACE, "index.md"),
-    replacePythonCommandLiterals(agentProgressIndexContent),
-  );
 
   // Create tasks/ directory
   ensureDir(path.join(cwd, PATHS.TASKS));

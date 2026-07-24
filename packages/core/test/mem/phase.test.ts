@@ -1,11 +1,11 @@
 /**
  * Tests for brainstorm-window phase slicing.
  *
- * brainstorm window = [task.py create, task.py start)
+ * brainstorm window = [trellis task create, trellis task start)
  *
  * Boundary signals are recovered from raw Claude JSONL `tool_use` blocks, so
  * `collectClaudeTurnsAndEvents` does its own pass producing both cleaned turns
- * and `task.py` event metadata.
+ * and `trellis task` event metadata.
  *
  * Migrated from the CLI `mem-phase-slice` suite.
  */
@@ -30,7 +30,7 @@ vi.mock("node:os", async () => {
   return { ...actual, homedir: () => fakeHome };
 });
 
-const { parseTaskPyCommand, parseTaskPyCommandsAll, buildBrainstormWindows } =
+const { parseTaskCommand, parseTaskCommandsAll, buildBrainstormWindows } =
   await import("../../src/mem/phase.js");
 const { collectClaudeTurnsAndEvents } =
   await import("../../src/mem/adapters/claude.js");
@@ -38,28 +38,26 @@ const { collectCodexTurnsAndEvents, commandFromCodexArguments } =
   await import("../../src/mem/adapters/codex.js");
 const { collectPiTurnsAndEvents } =
   await import("../../src/mem/adapters/pi.js");
-import type { MemSessionInfo, TaskPyEvent } from "../../src/mem/types.js";
+import type { MemSessionInfo, TaskEvent } from "../../src/mem/types.js";
 
 afterAll(() => {
   nodeFs.rmSync(fakeHome, { recursive: true, force: true });
 });
 
 // =============================================================================
-// parseTaskPyCommand — invoker / path-separator variants + false-positive guard
+// parseTaskCommand — invoker / path-separator variants + false-positive guard
 // =============================================================================
 
-describe("parseTaskPyCommand", () => {
+describe("parseTaskCommand", () => {
   it("returns null for empty / non-string input", () => {
-    expect(parseTaskPyCommand("")).toBeNull();
-    expect(parseTaskPyCommand("ls")).toBeNull();
+    expect(parseTaskCommand("")).toBeNull();
+    expect(parseTaskCommand("ls")).toBeNull();
     // @ts-expect-error testing runtime guard
-    expect(parseTaskPyCommand(undefined)).toBeNull();
+    expect(parseTaskCommand(undefined)).toBeNull();
   });
 
-  it('matches `python ./.trellis/scripts/task.py create "foo"`', () => {
-    const r = parseTaskPyCommand(
-      'python ./.trellis/scripts/task.py create "fix bug"',
-    );
+  it('matches `trellis task create "foo"`', () => {
+    const r = parseTaskCommand('trellis task create "fix bug"');
     expect(r).toEqual({
       action: "create",
       slug: undefined,
@@ -67,22 +65,18 @@ describe("parseTaskPyCommand", () => {
     });
   });
 
-  it("matches `python3 ./.trellis/scripts/task.py create ...`", () => {
-    const r = parseTaskPyCommand(
-      "python3 ./.trellis/scripts/task.py create my-task",
-    );
+  it("matches `trellis task create ...`", () => {
+    const r = parseTaskCommand("trellis task create my-task");
     expect(r?.action).toBe("create");
   });
 
-  it("matches `py -3 .trellis/scripts/task.py create ...` (Windows launcher)", () => {
-    const r = parseTaskPyCommand("py -3 .trellis/scripts/task.py create foo");
+  it("matches `trellis task create ...` (Windows launcher)", () => {
+    const r = parseTaskCommand("trellis task create foo");
     expect(r?.action).toBe("create");
   });
 
   it("matches Windows backslash path (single)", () => {
-    const r = parseTaskPyCommand(
-      "python3 .trellis\\scripts\\task.py start .trellis\\tasks\\05-08-foo",
-    );
+    const r = parseTaskCommand("trellis task start .trellis\\tasks\\05-08-foo");
     expect(r).toEqual({
       action: "start",
       taskDir: ".trellis\\tasks\\05-08-foo",
@@ -90,14 +84,12 @@ describe("parseTaskPyCommand", () => {
   });
 
   it("matches Windows backslash path (double — JSONL re-escape)", () => {
-    const r = parseTaskPyCommand(
-      "python3 .trellis\\\\scripts\\\\task.py create my-task",
-    );
+    const r = parseTaskCommand("trellis task create my-task");
     expect(r?.action).toBe("create");
   });
 
-  it("matches `task.py start` with no invoker prefix", () => {
-    const r = parseTaskPyCommand("task.py start .trellis/tasks/05-08-foo/");
+  it("matches `trellis task start` with no invoker prefix", () => {
+    const r = parseTaskCommand("trellis task start .trellis/tasks/05-08-foo/");
     expect(r).toEqual({
       action: "start",
       taskDir: ".trellis/tasks/05-08-foo/",
@@ -105,54 +97,46 @@ describe("parseTaskPyCommand", () => {
   });
 
   it("matches absolute path", () => {
-    const r = parseTaskPyCommand(
-      "python3 /Users/me/proj/.trellis/scripts/task.py create new-thing",
-    );
+    const r = parseTaskCommand("trellis task create new-thing");
     expect(r?.action).toBe("create");
   });
 
   it("captures --slug FOO flag value", () => {
-    const r = parseTaskPyCommand(
-      'python3 .trellis/scripts/task.py create "Title" --slug my-slug',
-    );
+    const r = parseTaskCommand('trellis task create "Title" --slug my-slug');
     expect(r).toMatchObject({ action: "create", slug: "my-slug" });
   });
 
   it("captures --slug=FOO equals form", () => {
-    const r = parseTaskPyCommand(
-      "python3 .trellis/scripts/task.py create --slug=my-slug",
-    );
+    const r = parseTaskCommand("trellis task create --slug=my-slug");
     expect(r).toMatchObject({ action: "create", slug: "my-slug" });
   });
 
-  it("does NOT match `--slug task.py-create-foo` (false-positive guard)", () => {
-    expect(parseTaskPyCommand("ls --slug task.py-create-foo")).toBeNull();
+  it("does NOT match `--slug trellis task-create-foo` (false-positive guard)", () => {
+    expect(parseTaskCommand("ls --slug trellis task-create-foo")).toBeNull();
   });
 
-  it("does NOT match arbitrary text containing task.py without verb", () => {
-    expect(parseTaskPyCommand("see task.py for details")).toBeNull();
+  it("does NOT match arbitrary text containing trellis task without verb", () => {
+    expect(parseTaskCommand("see trellis task for details")).toBeNull();
   });
 
-  it("does NOT match `task.py update` (only create/start are signals)", () => {
-    expect(
-      parseTaskPyCommand("python3 .trellis/scripts/task.py update foo"),
-    ).toBeNull();
+  it("does NOT match `trellis task update` (only create/start are signals)", () => {
+    expect(parseTaskCommand("trellis task update foo")).toBeNull();
   });
 
-  it("rejects `task.py-create` (must have whitespace before verb)", () => {
-    expect(parseTaskPyCommand("task.py-create foo")).toBeNull();
+  it("rejects `trellis task-create` (must have whitespace before verb)", () => {
+    expect(parseTaskCommand("trellis task-create foo")).toBeNull();
   });
 });
 
 // =============================================================================
-// parseTaskPyCommandsAll — dogfood-driven edge cases
+// parseTaskCommandsAll — dogfood-driven edge cases
 // =============================================================================
 
 function ev(
   action: "create" | "start",
   turnIndex: number,
   extra: { slug?: string; taskDir?: string } = {},
-): TaskPyEvent {
+): TaskEvent {
   return {
     action,
     timestamp: `2026-05-08T00:00:0${turnIndex}Z`,
@@ -161,10 +145,10 @@ function ev(
   };
 }
 
-describe("parseTaskPyCommandsAll (dogfood-driven edge cases)", () => {
+describe("parseTaskCommandsAll (dogfood-driven edge cases)", () => {
   it("strips $(...) closing paren from --slug value", () => {
-    const all = parseTaskPyCommandsAll(
-      'TASK_DIR=$(python3 ./.trellis/scripts/task.py create "fix: tl mem --since drops cross-day sessions" --slug mem-since-cross-day-filter)',
+    const all = parseTaskCommandsAll(
+      'TASK_DIR=$(trellis task create "fix: tl mem --since drops cross-day sessions" --slug mem-since-cross-day-filter)',
     );
     expect(all).toHaveLength(1);
     expect(all[0]).toMatchObject({
@@ -173,10 +157,10 @@ describe("parseTaskPyCommandsAll (dogfood-driven edge cases)", () => {
     });
   });
 
-  it("captures BOTH task.py invocations in one Bash command", () => {
+  it("captures BOTH trellis task invocations in one Bash command", () => {
     const cmd =
-      'SMOKE_TASK=$(python3 ./.trellis/scripts/task.py create "smoke" 2>&1); python3 ./.trellis/scripts/task.py start ".trellis/tasks/$SMOKE_TASK" 2>&1 | tail -3';
-    const all = parseTaskPyCommandsAll(cmd);
+      'SMOKE_TASK=$(trellis task create "smoke" 2>&1); trellis task start ".trellis/tasks/$SMOKE_TASK" 2>&1 | tail -3';
+    const all = parseTaskCommandsAll(cmd);
     expect(all).toHaveLength(2);
     expect(all[0]).toMatchObject({ action: "create" });
     expect(all[1]).toMatchObject({ action: "start" });
@@ -187,26 +171,24 @@ describe("parseTaskPyCommandsAll (dogfood-driven edge cases)", () => {
 
   it("rejects prose-embedded matches (heredoc / commit-message text)", () => {
     const cmd =
-      'git commit -m "Previous text said `.current-task` is a CLI fallback. Current code never writes that file — task.py start exits with hint to set TRELLIS_CONTEXT_ID."';
-    expect(parseTaskPyCommandsAll(cmd)).toEqual([]);
+      'git commit -m "Previous text said `.current-task` is a CLI fallback. Current code never writes that file — trellis task start exits with hint to set TRELLIS_CONTEXT_ID."';
+    expect(parseTaskCommandsAll(cmd)).toEqual([]);
   });
 
   it("rejects empty restRaw (no positional, just trailing whitespace)", () => {
-    expect(parseTaskPyCommandsAll("python3 ./scripts/task.py start  ")).toEqual(
-      [],
-    );
+    expect(parseTaskCommandsAll("trellis task start  ")).toEqual([]);
   });
 
-  it("does not match action embedded in flag value (--something=task.py-create-foo)", () => {
-    expect(parseTaskPyCommandsAll("foo --bar=task.py-create-baz xyz")).toEqual(
-      [],
-    );
+  it("does not match action embedded in flag value (--something=trellis task-create-foo)", () => {
+    expect(
+      parseTaskCommandsAll("foo --bar=trellis task-create-baz xyz"),
+    ).toEqual([]);
   });
 });
 
 describe("slugFromTaskDir (via buildBrainstormWindows pairing)", () => {
   it("pairs --slug FOO with start .trellis/tasks/MM-DD-FOO via prefix strip", () => {
-    const events: TaskPyEvent[] = [
+    const events: TaskEvent[] = [
       {
         action: "create",
         timestamp: "2026-05-08T00:00:05Z",
@@ -341,7 +323,7 @@ describe("collectClaudeTurnsAndEvents", () => {
     return { platform: "claude", id: sessionId, filePath: file };
   }
 
-  it("captures task.py create + start events with correct turnIndex", () => {
+  it("captures trellis task create + start events with correct turnIndex", () => {
     const s = buildSession("session-a", [
       {
         type: "user",
@@ -373,8 +355,7 @@ describe("collectClaudeTurnsAndEvents", () => {
               type: "tool_use",
               name: "Bash",
               input: {
-                command:
-                  'python3 ./.trellis/scripts/task.py create "task X" --slug task-x',
+                command: 'trellis task create "task X" --slug task-x',
               },
             },
           ],
@@ -396,8 +377,7 @@ describe("collectClaudeTurnsAndEvents", () => {
               type: "tool_use",
               name: "Bash",
               input: {
-                command:
-                  "python3 ./.trellis/scripts/task.py start .trellis/tasks/task-x",
+                command: "trellis task start .trellis/tasks/task-x",
               },
             },
           ],
@@ -432,7 +412,7 @@ describe("collectClaudeTurnsAndEvents", () => {
     expect(brainstorm[1]?.text).toBe("go");
   });
 
-  it("ignores non-task.py Bash tool_use events", () => {
+  it("ignores non-trellis task Bash tool_use events", () => {
     const s = buildSession("session-b", [
       {
         type: "user",
@@ -455,7 +435,7 @@ describe("collectClaudeTurnsAndEvents", () => {
     expect(collectClaudeTurnsAndEvents(s).events).toEqual([]);
   });
 
-  it("survives compaction: turns reset, subsequent task.py events still tracked", () => {
+  it("survives compaction: turns reset, subsequent trellis task events still tracked", () => {
     const s = buildSession("session-c", [
       {
         type: "user",
@@ -493,8 +473,7 @@ describe("collectClaudeTurnsAndEvents", () => {
               type: "tool_use",
               name: "Bash",
               input: {
-                command:
-                  "python3 ./.trellis/scripts/task.py create --slug post-compact",
+                command: "trellis task create --slug post-compact",
               },
             },
           ],
@@ -513,7 +492,7 @@ describe("collectClaudeTurnsAndEvents", () => {
     });
   });
 
-  it("compaction discards PRE-compact task.py events (turnIndex no longer valid)", () => {
+  it("compaction discards PRE-compact trellis task events (turnIndex no longer valid)", () => {
     const s = buildSession("session-d", [
       {
         type: "user",
@@ -532,8 +511,7 @@ describe("collectClaudeTurnsAndEvents", () => {
               type: "tool_use",
               name: "Bash",
               input: {
-                command:
-                  "python3 ./.trellis/scripts/task.py create --slug stale",
+                command: "trellis task create --slug stale",
               },
             },
           ],
@@ -562,31 +540,33 @@ describe("collectClaudeTurnsAndEvents", () => {
 
 describe("commandFromCodexArguments", () => {
   it("returns a raw shell string unchanged", () => {
-    expect(commandFromCodexArguments("task.py create foo")).toBe(
-      "task.py create foo",
+    expect(commandFromCodexArguments("trellis task create foo")).toBe(
+      "trellis task create foo",
     );
   });
 
   it("extracts `cmd` from a stringified JSON object", () => {
     expect(
-      commandFromCodexArguments(JSON.stringify({ cmd: "task.py start bar" })),
-    ).toBe("task.py start bar");
+      commandFromCodexArguments(
+        JSON.stringify({ cmd: "trellis task start bar" }),
+      ),
+    ).toBe("trellis task start bar");
   });
 
   it("extracts `command` from a stringified JSON object", () => {
     expect(
       commandFromCodexArguments(
-        JSON.stringify({ command: "task.py create baz" }),
+        JSON.stringify({ command: "trellis task create baz" }),
       ),
-    ).toBe("task.py create baz");
+    ).toBe("trellis task create baz");
   });
 
   it("joins `argv[]` with spaces from a stringified JSON object", () => {
     expect(
       commandFromCodexArguments(
-        JSON.stringify({ argv: ["python3", "task.py", "create", "qux"] }),
+        JSON.stringify({ argv: ["trellis", "task", "create", "qux"] }),
       ),
-    ).toBe("python3 task.py create qux");
+    ).toBe("trellis task create qux");
   });
 
   it("extracts `cmd` / `command` / `argv` from a raw object", () => {
@@ -599,8 +579,8 @@ describe("commandFromCodexArguments", () => {
     expect(commandFromCodexArguments(undefined)).toBeUndefined();
     expect(commandFromCodexArguments(42)).toBeUndefined();
     expect(commandFromCodexArguments({ other: "x" })).toBeUndefined();
-    expect(commandFromCodexArguments("not json, no task.py")).toBe(
-      "not json, no task.py",
+    expect(commandFromCodexArguments("not json, no trellis task")).toBe(
+      "not json, no trellis task",
     );
     expect(
       commandFromCodexArguments(JSON.stringify(["a", "b"])),
@@ -628,7 +608,7 @@ describe("collectCodexTurnsAndEvents", () => {
     return { platform: "codex", id: "codex-test", filePath: sessionFile };
   }
 
-  it("recognizes task.py boundary from `argv[]` joined with spaces", () => {
+  it("recognizes trellis task boundary from `argv[]` joined with spaces", () => {
     const s = buildSession([
       {
         timestamp: "2026-05-08T00:00:00Z",
@@ -648,13 +628,7 @@ describe("collectCodexTurnsAndEvents", () => {
           type: "function_call",
           name: "shell",
           arguments: JSON.stringify({
-            argv: [
-              "python3",
-              ".trellis/scripts/task.py",
-              "create",
-              "--slug",
-              "codex-task",
-            ],
+            argv: ["trellis", "task", "create", "--slug", "codex-task"],
           }),
         },
       },
@@ -673,8 +647,8 @@ describe("collectCodexTurnsAndEvents", () => {
           name: "exec_command",
           arguments: JSON.stringify({
             argv: [
-              "python3",
-              ".trellis/scripts/task.py",
+              "trellis",
+              "task",
               "start",
               ".trellis/tasks/05-08-codex-task",
             ],
@@ -711,7 +685,7 @@ describe("collectCodexTurnsAndEvents", () => {
     ]);
   });
 
-  it("recognizes task.py boundary from a raw `argv[]` object (not stringified)", () => {
+  it("recognizes trellis task boundary from a raw `argv[]` object (not stringified)", () => {
     const s = buildSession([
       {
         timestamp: "2026-05-08T00:00:00Z",
@@ -723,7 +697,7 @@ describe("collectCodexTurnsAndEvents", () => {
           type: "function_call",
           name: "shell",
           arguments: {
-            argv: ["task.py", "create", "--slug", "raw-obj"],
+            argv: ["trellis task", "create", "--slug", "raw-obj"],
           },
         },
       },
@@ -745,7 +719,7 @@ describe("collectCodexTurnsAndEvents", () => {
           type: "function_call",
           name: "exec_command",
           arguments: JSON.stringify({
-            cmd: "python3 .trellis/scripts/task.py create --slug str-cmd",
+            cmd: "trellis task create --slug str-cmd",
           }),
         },
       },
@@ -755,7 +729,7 @@ describe("collectCodexTurnsAndEvents", () => {
     expect(events[0]).toMatchObject({ action: "create", slug: "str-cmd" });
   });
 
-  it("ignores non-task.py function calls", () => {
+  it("ignores non-trellis task function calls", () => {
     const s = buildSession([
       {
         timestamp: "2026-05-08T00:00:00Z",
@@ -798,7 +772,7 @@ describe("collectPiTurnsAndEvents", () => {
     return { platform: "pi", id: "pi-test", filePath: sessionFile };
   }
 
-  it("captures task.py boundaries from assistant toolCall blocks and bashExecution messages", () => {
+  it("captures trellis task boundaries from assistant toolCall blocks and bashExecution messages", () => {
     const s = buildSession([
       {
         type: "session",
@@ -827,8 +801,7 @@ describe("collectPiTurnsAndEvents", () => {
               type: "toolCall",
               name: "bash",
               arguments: {
-                command:
-                  "python3 .trellis/scripts/task.py create --slug pi-task",
+                command: "trellis task create --slug pi-task",
               },
             },
           ],
@@ -848,8 +821,7 @@ describe("collectPiTurnsAndEvents", () => {
         timestamp: "2026-06-18T00:00:04.000Z",
         message: {
           role: "bashExecution",
-          command:
-            "python3 .trellis/scripts/task.py start .trellis/tasks/06-18-pi-task",
+          command: "trellis task start .trellis/tasks/06-18-pi-task",
           output: "",
         },
       },
@@ -885,7 +857,7 @@ describe("collectPiTurnsAndEvents", () => {
     ]);
   });
 
-  it("drops task.py events from discarded pre-compaction history", () => {
+  it("drops trellis task events from discarded pre-compaction history", () => {
     const s = buildSession([
       {
         type: "session",
@@ -906,7 +878,7 @@ describe("collectPiTurnsAndEvents", () => {
             {
               type: "toolCall",
               name: "shell",
-              arguments: { command: "task.py create --slug stale" },
+              arguments: { command: "trellis task create --slug stale" },
             },
           ],
         },

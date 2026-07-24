@@ -23,7 +23,7 @@ Full flag reference for the five subcommands. Pin this as the authoritative sour
 | `--cwd <path>`                                | list / search     | Force a specific project cwd instead of inferring from where you are.                                                                                      |
 | `--limit N`                                   | list / search     | Cap output rows. Default `50`.                                                                                                                             |
 | `--grep KW`                                   | extract / context | Filter turns by keyword. Multi-token AND when whitespace-separated.                                                                                        |
-| `--phase brainstorm\|implement\|all`          | extract           | Slice session by Trellis task boundaries. `brainstorm` = `[task.py create, task.py start)`. `implement` = turns outside brainstorm windows. Default `all`. |
+| `--phase brainstorm\|implement\|all`          | extract           | Slice session by Trellis task boundaries. `brainstorm` = `[trellis task create, trellis task start)`. `implement` = turns outside brainstorm windows. Default `all`. |
 | `--turns N`                                   | context           | Number of hit turns to return. Default `3`.                                                                                                                |
 | `--around N`                                  | context           | Surrounding turns to include per hit. Default `1`.                                                                                                         |
 | `--max-chars N`                               | context           | Total character budget. Default `6000` (~1500 tokens).                                                                                                     |
@@ -56,7 +56,7 @@ trellis mem projects
 ## Caveats
 
 - **OpenCode adapter is a stub on `0.6.0-beta.*`.** When `--platform` resolves to OpenCode (or `all` and OpenCode would be included), `mem` prints a one-line "reader unavailable" notice and continues with the other platforms. Don't promise OpenCode coverage in your reply until the adapter ships.
-- **`--phase` slicing depends on `task.py create` / `task.py start` invocations appearing in the recorded bash calls of the session.** Sessions where the user ran `task.py` from a different terminal — outside the recorded AI loop — will not have phase boundaries. `--phase all` is the safe fallback.
+- **`--phase` slicing depends on `trellis task create` / `trellis task start` invocations appearing in the recorded bash calls of the session.** Sessions where the user ran `trellis task` from a different terminal — outside the recorded AI loop — will not have phase boundaries. `--phase all` is the safe fallback.
 - **`mem` indexes platform JSONL files directly.** If the user has cleared their Claude / Codex / Pi session storage, `mem` cannot recover what is no longer on disk.
 - **`mem` is read-only.** No remote sync, no edits to platform JSONL. Any write you do based on `mem` findings is your own follow-up call into the editing tools available to you.
 

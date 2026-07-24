@@ -27,6 +27,7 @@ import {
   updateHashes,
   isTemplateModified,
   removeHash,
+  removeHashPrefix,
   renameHash,
   computeHash,
 } from "../utils/template-hash.js";
@@ -37,7 +38,6 @@ import { emptyTaskJson } from "../utils/task-json.js";
 
 // Import templates for comparison
 import {
-  getAllScripts,
   getAllAgents,
   // Configuration
   configYamlTemplate,
@@ -60,7 +60,6 @@ import {
   isManagedPath,
   isManagedRootDir,
 } from "../configurators/index.js";
-import { replacePythonCommandLiterals } from "../configurators/shared.js";
 import { preserveCodexAgentModelKeys } from "../configurators/codex.js";
 import { pruneOrphanManifestKeys } from "../utils/manifest-prune.js";
 import {
@@ -865,11 +864,6 @@ async function collectTemplateFiles(
     }
   }
 
-  // Python scripts (single source of truth: getAllScripts())
-  for (const [scriptPath, content] of getAllScripts()) {
-    files.set(`${PATHS.SCRIPTS}/${scriptPath}`, content);
-  }
-
   // Channel runtime agent definitions (single source of truth: getAllAgents()).
   // Backfilled by `trellis update` if missing so users who installed before the
   // bundled agents existed pick them up. Edited files take the standard
@@ -884,16 +878,8 @@ async function collectTemplateFiles(
     preserveExistingRegistryConfig(cwd, configYamlTemplate),
   );
   files.set(`${DIR_NAMES.WORKFLOW}/.gitignore`, gitignoreTemplate);
-  // workflow.md is included here because it is runtime-parsed by
-  // get_context.py and shared hooks. Keep it on the normal template update
-  // path: if the installed file still matches the tracked hash, update the
-  // whole file. If the user edited it, the standard modified-file prompt /
-  // --force behavior applies. Partial tag-block merging is unsafe because
-  // platform routing markers outside [workflow-state:*] blocks are also
-  // script-consumed.
+  // workflow.md is parsed by the central TypeScript context runtime.
   files.set(`${DIR_NAMES.WORKFLOW}/workflow.md`, workflowMdTemplate);
-  // workspace/index.md stays excluded — it's runtime-appended by add_session.py
-  // (journal index) and has no script-parsed structure.
   files.set(FILE_NAMES.AGENTS, buildAgentsMdTemplate(cwd));
 
   // Platform-specific templates (only for configured platforms)
@@ -943,11 +929,6 @@ async function collectTemplateFiles(
         }
       }
     }
-  }
-
-  // Apply python3→python replacement for Windows consistency with init-time writes
-  for (const [filePath, content] of files) {
-    files.set(filePath, replacePythonCommandLiterals(content));
   }
 
   return files;
@@ -2044,43 +2025,6 @@ function printMigrationResult(result: MigrationResult): void {
 }
 
 /**
- * One-time 0.2.0 migration: rename `traces-*.md` → `journal-*.md` in every
- * developer workspace directory.
- *
- * Never overwrites an existing `journal-N.md`: a newer session may already
- * have created it, and `.trellis/workspace/` is excluded from the update
- * backup (see `BACKUP_EXCLUDE_PATTERNS`), so clobbering it would be
- * unrecoverable data loss. Conflicting `traces-N.md` files are left in place
- * and reported instead.
- */
-export function renameTracesToJournal(workspaceDir: string): {
-  renamed: number;
-  skipped: string[];
-} {
-  const skipped: string[] = [];
-  let renamed = 0;
-  if (!fs.existsSync(workspaceDir)) return { renamed, skipped };
-
-  for (const dev of fs.readdirSync(workspaceDir)) {
-    const devPath = path.join(workspaceDir, dev);
-    if (!fs.statSync(devPath).isDirectory()) continue;
-
-    for (const file of fs.readdirSync(devPath)) {
-      if (!(file.startsWith("traces-") && file.endsWith(".md"))) continue;
-      const oldPath = path.join(devPath, file);
-      const newPath = path.join(devPath, file.replace("traces-", "journal-"));
-      if (fs.existsSync(newPath)) {
-        skipped.push(oldPath);
-        continue;
-      }
-      fs.renameSync(oldPath, newPath);
-      renamed++;
-    }
-  }
-  return { renamed, skipped };
-}
-
-/**
  * Main update command
  */
 export async function update(options: UpdateOptions): Promise<void> {
@@ -2538,19 +2482,23 @@ export async function update(options: UpdateOptions): Promise<void> {
     }
   }
 
-  // Create complete backup of all managed platform/workflow directories
+  // Removed runtimes are intentionally not retained in compatibility backups.
+  for (const file of obsoleteFiles) {
+    const target = path.join(cwd, file);
+    const directory = fs.statSync(target).isDirectory();
+    fs.rmSync(target, { force: true, recursive: directory });
+    removeHash(cwd, file);
+    if (directory) removeHashPrefix(cwd, file);
+    console.log(chalk.cyan(`  - Removed obsolete template: ${file}`));
+  }
+
+  // Create complete backup of the remaining managed platform/workflow files.
   const backupDir = createFullBackup(cwd);
 
   if (backupDir) {
     console.log(
       chalk.gray(`\nBackup created: ${path.relative(cwd, backupDir)}/`),
     );
-  }
-
-  for (const file of obsoleteFiles) {
-    fs.rmSync(path.join(cwd, file), { force: true });
-    removeHash(cwd, file);
-    console.log(chalk.cyan(`  - Removed obsolete template: ${file}`));
   }
 
   // Execute migrations if --migrate flag is set
@@ -2565,27 +2513,6 @@ export async function update(options: UpdateOptions): Promise<void> {
       templates,
     );
     printMigrationResult(migrationResult);
-
-    // Hardcoded: Rename traces-*.md to journal-*.md in workspace directories
-    // Why hardcoded: The migration system only supports fixed path renames, not pattern-based.
-    // traces-*.md files are in .trellis/workspace/{developer}/ with variable developer names
-    // and variable file numbers (traces-1.md, traces-2.md, etc.), so we can't enumerate them
-    // in the migration manifest. This is a one-time migration for the 0.2.0 naming redesign.
-    const workspaceDir = path.join(cwd, PATHS.WORKSPACE);
-    const { renamed: journalRenamed, skipped: journalSkipped } =
-      renameTracesToJournal(workspaceDir);
-    if (journalRenamed > 0) {
-      console.log(
-        chalk.cyan(`Renamed ${journalRenamed} traces file(s) to journal`),
-      );
-    }
-    for (const oldPath of journalSkipped) {
-      console.warn(
-        chalk.yellow(
-          `Kept ${path.relative(cwd, oldPath)}: its journal target already exists`,
-        ),
-      );
-    }
   }
 
   // Execute safe-file-delete (after backup, before template writes)
@@ -2782,7 +2709,7 @@ export async function update(options: UpdateOptions): Promise<void> {
         fs.mkdirSync(taskDir, { recursive: true });
 
         // Get current developer for assignee.
-        // `.developer` is a key=value file (written by init_developer.py):
+        // `.developer` is a key=value file written by `trellis init`:
         //   name=<developer-name>
         //   initialized_at=<iso8601>
         // Reading it raw and .trim()-ing embeds the entire file contents

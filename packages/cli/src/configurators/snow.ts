@@ -34,7 +34,6 @@ import {
   resolveCommands,
   writeSkills,
   writeAgents,
-  replacePythonCommandLiterals,
 } from "./shared.js";
 
 function buildSnowCommandJson(name: string, content: string): string {
@@ -87,7 +86,7 @@ export function collectSnowTemplates(): Map<string, string> {
   }
 
   for (const cmd of resolveCommands(ctx)) {
-    const body = replacePythonCommandLiterals(cmd.content);
+    const body = cmd.content;
     files.set(
       `.snow/commands/trellis-${cmd.name}.json`,
       buildSnowCommandJson(cmd.name, body),
@@ -123,7 +122,7 @@ export async function configureSnow(cwd: string): Promise<void> {
   const commandsDir = path.join(cwd, ".snow", "commands");
   ensureDir(commandsDir);
   for (const cmd of resolveCommands(ctx)) {
-    const body = replacePythonCommandLiterals(cmd.content);
+    const body = cmd.content;
     await writeFile(
       path.join(commandsDir, `trellis-${cmd.name}.json`),
       buildSnowCommandJson(cmd.name, body),
@@ -136,10 +135,7 @@ export async function configureSnow(cwd: string): Promise<void> {
   const hooksDir = path.join(cwd, ".snow", "hooks");
   ensureDir(hooksDir);
   for (const hook of getAllHooks()) {
-    await writeFile(
-      path.join(hooksDir, hook.targetPath),
-      replacePythonCommandLiterals(hook.content),
-    );
+    await writeFile(path.join(hooksDir, hook.targetPath), hook.content);
   }
 
   await writeFile(path.join(cwd, ".snow", "SNOW.md"), getSnowGuide());

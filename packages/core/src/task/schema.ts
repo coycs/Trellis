@@ -1,10 +1,9 @@
 /**
  * Canonical task.json shape — single source of truth for Trellis tasks.
  *
- * The runtime Python writer is `.trellis/scripts/common/task_store.py`
- * (`cmd_create`). The 24-field shape and field order below mirror that
- * writer exactly so every TS and Python entry point produces structurally
- * identical task.json files.
+ * The CLI writer is `packages/cli/src/commands/task.ts`
+ * The field shape and order below mirror that writer so every CLI entry point
+ * produces structurally identical task.json files.
  *
  * Downstream consumers (CLI bootstrap, migration tooling, external Node
  * services) should depend on this type instead of redefining their own
@@ -38,7 +37,7 @@ export interface TrellisTaskRecord {
 }
 
 /**
- * Canonical task field order — matches `task_store.py::cmd_create`. Used
+ * Canonical task field order. Used
  * by `writeTaskRecord` so the on-disk JSON layout is deterministic.
  */
 export const TASK_RECORD_FIELD_ORDER = [
@@ -242,7 +241,9 @@ export function emptyTaskRecord(
   return record;
 }
 
-export function isPlainObject(value: unknown): value is Record<string, unknown> {
+export function isPlainObject(
+  value: unknown,
+): value is Record<string, unknown> {
   return (
     typeof value === "object" &&
     value !== null &&
@@ -277,7 +278,9 @@ function cloneJsonValue(value: unknown, path: string): unknown {
     return value;
   }
   if (Array.isArray(value)) {
-    return value.map((item, index) => cloneJsonValue(item, `${path}[${index}]`));
+    return value.map((item, index) =>
+      cloneJsonValue(item, `${path}[${index}]`),
+    );
   }
   if (isPlainObject(value)) {
     return cloneJsonObject(value, path);

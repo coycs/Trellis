@@ -3,7 +3,6 @@ import { AI_TOOLS } from "../types/ai-tools.js";
 import { ensureDir, writeFile } from "../utils/file-writer.js";
 import {
   collectSkillTemplates,
-  replacePythonCommandLiterals,
   resolveCommands,
   resolveBundledSkills,
   resolveSkills,
@@ -45,10 +44,7 @@ export function collectOmpTemplates(): Map<string, string> {
   }
 
   // Extension
-  files.set(
-    ".omp/extensions/trellis/index.ts",
-    replacePythonCommandLiterals(getExtensionTemplate()),
-  );
+  files.set(".omp/extensions/trellis/index.ts", getExtensionTemplate());
 
   return files;
 }
@@ -85,6 +81,6 @@ export async function configureOmp(cwd: string): Promise<void> {
   ensureDir(path.join(configRoot, "extensions", "trellis"));
   await writeFile(
     path.join(configRoot, "extensions", "trellis", "index.ts"),
-    replacePythonCommandLiterals(getExtensionTemplate()),
+    getExtensionTemplate(),
   );
 }

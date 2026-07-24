@@ -20,7 +20,7 @@ import {
   piSessionRoots,
   walkDir,
 } from "../internal/paths.js";
-import { parseTaskPyCommandsAll } from "../phase.js";
+import { parseTaskCommandsAll } from "../phase.js";
 import { searchInDialogue } from "../search.js";
 import type {
   DialogueRole,
@@ -28,7 +28,7 @@ import type {
   MemFilter,
   MemSessionInfo,
   SearchHit,
-  TaskPyEvent,
+  TaskEvent,
 } from "../types.js";
 
 // ---------- loose external shapes ----------
@@ -71,7 +71,7 @@ interface PiEntry {
 
 interface PiBuilt {
   turns: DialogueTurn[];
-  events: TaskPyEvent[];
+  events: TaskEvent[];
 }
 
 // ---------- list ----------
@@ -190,7 +190,7 @@ export function collectPiTurnsAndEvents(s: MemSessionInfo): PiBuilt {
 function buildPiTurnsAndEvents(s: MemSessionInfo): PiBuilt {
   const effective = effectiveActivePath(s.filePath);
   const turns: DialogueTurn[] = [];
-  const events: TaskPyEvent[] = [];
+  const events: TaskEvent[] = [];
 
   for (const entry of effective) {
     collectTaskEvents(entry, turns.length, events);
@@ -328,7 +328,7 @@ function buildTurn(
 function collectTaskEvents(
   entry: PiEntry,
   turnIndex: number,
-  events: TaskPyEvent[],
+  events: TaskEvent[],
 ): void {
   if (entry.type !== "message") return;
   const msg = entry.message;
@@ -357,11 +357,11 @@ function pushTaskEvents(
   command: string,
   timestamp: string | undefined,
   turnIndex: number,
-  events: TaskPyEvent[],
+  events: TaskEvent[],
 ): void {
-  const parsedAll = parseTaskPyCommandsAll(command);
+  const parsedAll = parseTaskCommandsAll(command);
   for (const parsed of parsedAll) {
-    const ev: TaskPyEvent = {
+    const ev: TaskEvent = {
       action: parsed.action,
       timestamp: timestamp ?? "",
       turnIndex,

@@ -2,7 +2,6 @@ import path from "node:path";
 import { AI_TOOLS } from "../types/ai-tools.js";
 import {
   COPILOT_INSTRUCTIONS_PATH,
-  getAllHooks,
   getCopilotInstructions,
   getHooksConfig,
 } from "../templates/copilot/index.js";
@@ -15,8 +14,6 @@ import {
   applyPullBasedPreludeMarkdown,
   normalizeCopilotMarkdownAgents,
   writeSkills,
-  writeSharedHooks,
-  replacePythonCommandLiterals,
 } from "./shared.js";
 
 /**
@@ -34,6 +31,7 @@ export async function configureCopilot(cwd: string): Promise<void> {
   const copilotRoot = path.join(cwd, ".github", "copilot");
 
   ensureDir(path.join(cwd, ".github"));
+  ensureDir(copilotRoot);
   await writeFile(
     path.join(cwd, ...COPILOT_INSTRUCTIONS_PATH.split("/")),
     getCopilotInstructions(),
@@ -68,23 +66,9 @@ export async function configureCopilot(cwd: string): Promise<void> {
   )) {
     await writeFile(
       path.join(agentsDir, `${agent.name}.agent.md`),
-      replacePythonCommandLiterals(agent.content),
+      agent.content,
     );
   }
-
-  // Platform-specific hook scripts (Copilot's own session-start.py)
-  const hooksDir = path.join(copilotRoot, "hooks");
-  ensureDir(hooksDir);
-  for (const hook of getAllHooks()) {
-    await writeFile(
-      path.join(hooksDir, hook.name),
-      replacePythonCommandLiterals(hook.content),
-    );
-  }
-
-  // Shared hook scripts (inject-workflow-state.py only). Copilot bundles its
-  // own session-start.py above; sub-agent context is pull-based (class-2).
-  await writeSharedHooks(hooksDir, "copilot");
 
   // Hooks config
   const resolvedConfig = resolvePlaceholders(getHooksConfig());

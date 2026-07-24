@@ -21,20 +21,18 @@ const { listFiles, readTemplate, listJsonAgents } = createTemplateReader(
 
 /**
  * Get all Kiro agent templates (JSON format).
- * Content contains {{PYTHON_CMD}} placeholder that must be resolved before writing.
  */
 export const getAllAgents = (): AgentTemplate[] => listJsonAgents();
 
 export interface IdeHookTemplate {
   /** Filename (e.g. "trellis-workflow-state.kiro.hook") */
   name: string;
-  /** Raw JSON content; contains {{PYTHON_CMD}} placeholder. */
+  /** Raw JSON content. */
   content: string;
 }
 
 /**
  * Get all Kiro IDE hook templates (`*.kiro.hook` JSON files).
- * Content contains {{PYTHON_CMD}} placeholder that must be resolved before writing.
  */
 export const getIdeHooks = (): IdeHookTemplate[] =>
   listFiles("hooks")

@@ -7,7 +7,6 @@ import {
   collectPlatformTemplates,
   getInitToolChoices,
   getPlatformManagedPaths,
-  getPlatformsWithPythonHooks,
   isManagedPath,
   isManagedRootDir,
   resolveCliFlag,
@@ -277,31 +276,6 @@ describe("getInitToolChoices", () => {
 });
 
 // =============================================================================
-// getPlatformsWithPythonHooks
-// =============================================================================
-
-describe("getPlatformsWithPythonHooks", () => {
-  const result = getPlatformsWithPythonHooks();
-
-  it("returns only platforms with hasPythonHooks: true", () => {
-    for (const id of result) {
-      expect(AI_TOOLS[id].hasPythonHooks).toBe(true);
-    }
-  });
-
-  it("includes all platforms with hasPythonHooks: true", () => {
-    const expected = PLATFORM_IDS.filter((id) => AI_TOOLS[id].hasPythonHooks);
-    expect(result).toEqual(expected);
-  });
-
-  it("returns a subset of PLATFORM_IDS", () => {
-    for (const id of result) {
-      expect(PLATFORM_IDS).toContain(id);
-    }
-  });
-});
-
-// =============================================================================
 // collectPlatformTemplates — path consistency
 // =============================================================================
 
@@ -374,11 +348,6 @@ describe("collectPlatformTemplates", () => {
       const result = collectPlatformTemplates(id as AITool);
       expect(result, `${id} should have template tracking`).toBeInstanceOf(Map);
       expect(result?.has(`${skillRoot}/trellis-meta/SKILL.md`)).toBe(true);
-      expect(
-        result?.has(
-          `${skillRoot}/trellis-meta/references/local-architecture/overview.md`,
-        ),
-      ).toBe(true);
       expect(result?.has(`${skillRoot}/trellis-spec-bootstrap/SKILL.md`)).toBe(
         true,
       );
@@ -482,16 +451,16 @@ describe("collectPlatformTemplates", () => {
     expect(result?.has(".kimi-code/skills/trellis-continue/SKILL.md")).toBe(
       true,
     );
-    expect(
-      result?.has(".kimi-code/skills/trellis-finish-work/SKILL.md"),
-    ).toBe(true);
-    expect(
-      result?.has(".kimi-code/skills/trellis-implement/SKILL.md"),
-    ).toBe(true);
+    expect(result?.has(".kimi-code/skills/trellis-finish-work/SKILL.md")).toBe(
+      true,
+    );
+    expect(result?.has(".kimi-code/skills/trellis-implement/SKILL.md")).toBe(
+      true,
+    );
     expect(result?.has(".kimi-code/skills/trellis-check/SKILL.md")).toBe(true);
-    expect(
-      result?.has(".kimi-code/skills/trellis-research/SKILL.md"),
-    ).toBe(true);
+    expect(result?.has(".kimi-code/skills/trellis-research/SKILL.md")).toBe(
+      true,
+    );
     // No project-level hooks/settings for Kimi
     expect(
       [...(result?.keys() ?? [])].some((key) =>

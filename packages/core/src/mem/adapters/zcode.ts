@@ -32,7 +32,7 @@ import {
   type SqliteRow,
 } from "../internal/sqlite-readonly.js";
 import { ZCODE_DB } from "../internal/paths.js";
-import { parseTaskPyCommandsAll } from "../phase.js";
+import { parseTaskCommandsAll } from "../phase.js";
 import { searchInDialogue } from "../search.js";
 import type {
   DialogueRole,
@@ -41,7 +41,7 @@ import type {
   MemSessionInfo,
   MemWarning,
   SearchHit,
-  TaskPyEvent,
+  TaskEvent,
 } from "../types.js";
 
 // ---------- loose external shapes ----------
@@ -115,8 +115,7 @@ interface ZcodeSessionStore {
 }
 
 const ZCODE_DB_UNREADABLE_WARNING_CODE = "zcode-db-unreadable";
-const ZCODE_DB_SNAPSHOT_UNSTABLE_WARNING_CODE =
-  "zcode-db-snapshot-unstable";
+const ZCODE_DB_SNAPSHOT_UNSTABLE_WARNING_CODE = "zcode-db-snapshot-unstable";
 
 function emptySessionStore(): ZcodeSessionStore {
   return { messagesBySession: new Map(), partsByMsg: new Map() };
@@ -533,18 +532,18 @@ export function zcodeSearch(
   return searchInDialogue(zcodeExtractDialogue(s, warnings), kw);
 }
 
-// ---------- phase slicing (task.py boundary detection) ----------
+// ---------- phase slicing (trellis task boundary detection) ----------
 
 /**
  * Single pass over messages + parts. Emits both the cleaned dialogue turns and
- * the list of `task.py create|start` invocations found in `Bash` tool parts
+ * the list of `trellis task create|start` invocations found in `Bash` tool parts
  * (`{type:"tool", tool:"Bash", state:{input:{command:"..."}}}`). `turnIndex`
  * for each event is the turn count at the time the tool ran.
  *
  * Compaction: ZCode writes a summary message with a `compaction` part carrying
  * `tail_start_id` / `compactBoundary`; earlier messages are replaced by that
  * summary. We slice to the latest summary message before collecting turns and
- * task events, so stale pre-compaction `task.py` boundaries do not leak into
+ * task events, so stale pre-compaction `trellis task` boundaries do not leak into
  * phase slicing.
  *
  * turnIndex note (differs slightly from claude/codex): in ZCode a message's
@@ -563,7 +562,7 @@ export function collectZcodeTurnsAndEvents(
   warnings: MemWarning[] = [],
 ): {
   turns: DialogueTurn[];
-  events: TaskPyEvent[];
+  events: TaskEvent[];
 } {
   const { messages, partsByMsg } = readSessionMessages(
     s.filePath,
@@ -572,7 +571,7 @@ export function collectZcodeTurnsAndEvents(
   );
   const effective = effectiveMessagesForSession(messages, partsByMsg);
   const turns: DialogueTurn[] = [];
-  const events: TaskPyEvent[] = [];
+  const events: TaskEvent[] = [];
 
   for (const msg of effective.messages) {
     const parts = partsByMsg.get(msg.id) ?? [];
@@ -581,17 +580,17 @@ export function collectZcodeTurnsAndEvents(
     const turn = buildTextTurn(msg, parts, effective.compactSummaryMessageId);
     if (turn) turns.push(turn);
 
-    // Then scan for Bash tool parts carrying task.py commands.
+    // Then scan for Bash tool parts carrying trellis task commands.
     for (const part of parts) {
       const pd = part.data as ZcodeToolPart;
       if (pd.type !== "tool") continue;
       if (pd.tool !== "Bash" && pd.tool !== "bash") continue;
       const cmd = pd.state?.input?.command;
       if (typeof cmd !== "string" || !cmd) continue;
-      const parsedAll = parseTaskPyCommandsAll(cmd);
+      const parsedAll = parseTaskCommandsAll(cmd);
       const ts = toIso(part.time_created) ?? "";
       for (const parsed of parsedAll) {
-        const ev: TaskPyEvent = {
+        const ev: TaskEvent = {
           action: parsed.action,
           timestamp: ts,
           turnIndex: turns.length,

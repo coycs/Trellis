@@ -55,7 +55,7 @@ You are already the `trellis-implement` sub-agent that the main session dispatch
 On Snow CLI (class-1), project agents under `.snow/agents/` are auto-discovered. Prefer starting the prompt with:
 
 ```text
-Active task: <path from task.py current>
+Active task: <path from trellis task current>
 ```
 
 - Session/user hooks inject Trellis context into the main session.

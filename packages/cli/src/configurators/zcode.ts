@@ -8,15 +8,13 @@
  * - `.zcode/skills/` — ZCode-private workflow and bundled skills
  * - `.zcode/commands/trellis/` — slash commands (invoked as /trellis:<name>)
  * - `.zcode/agents/` — sub-agent definitions with hook-injection fallback
- * - `.zcode/hooks/` + `.zcode/config.json` — shared Python hook scripts and
- *   the workspace hook registration
+ * - `.zcode/config.json` — workspace hook registration
  */
 
 import path from "node:path";
 import { AI_TOOLS } from "../types/ai-tools.js";
 import { ensureDir, writeFile } from "../utils/file-writer.js";
 import { getAllAgents, getHooksConfig } from "../templates/zcode/index.js";
-import { getSharedHookScriptsForPlatform } from "../templates/shared-hooks/index.js";
 import {
   collectSkillTemplates,
   resolveBundledSkills,
@@ -25,11 +23,7 @@ import {
   resolveSkills,
   writeSkills,
   writeAgents,
-  writeSharedHooks,
 } from "./shared.js";
-
-/** Shared hooks directory written for ZCode (mirrors the configure path). */
-const ZCODE_HOOKS_DIR = ".zcode/hooks";
 
 /**
  * Collect all ZCode template files for `trellis update` diff tracking.
@@ -59,14 +53,7 @@ export function collectZcodeTemplates(): Map<string, string> {
     files.set(`.zcode/agents/${agent.name}.md`, agent.content);
   }
 
-  // 4. Shared hook scripts → .zcode/hooks/.
-  //    Content is platform-independent (no placeholders), written as-is so the
-  //    hash matches what writeSharedHooks installs.
-  for (const hook of getSharedHookScriptsForPlatform("zcode")) {
-    files.set(`${ZCODE_HOOKS_DIR}/${hook.name}`, hook.content);
-  }
-
-  // 5. Workspace hook registration → .zcode/config.json
+  // 4. Workspace hook registration → .zcode/config.json
   files.set(
     ".zcode/config.json",
     resolvePlaceholders(getHooksConfig().content),
@@ -77,7 +64,7 @@ export function collectZcodeTemplates(): Map<string, string> {
 
 /**
  * Configure ZCode at init time: write private skills, commands, sub-agents,
- * shared hooks, and the workspace hook config.
+ * and the workspace hook config.
  */
 export async function configureZcode(cwd: string): Promise<void> {
   const config = AI_TOOLS.zcode;
@@ -101,10 +88,7 @@ export async function configureZcode(cwd: string): Promise<void> {
   // 3. Sub-agents → .zcode/agents/ (hook-inject; templates carry fallback).
   await writeAgents(path.join(zcodeRoot, "agents"), getAllAgents());
 
-  // 4. Shared hooks → .zcode/hooks/
-  await writeSharedHooks(path.join(zcodeRoot, "hooks"), "zcode");
-
-  // 5. Workspace hook config → .zcode/config.json
+  // 4. Workspace hook config → .zcode/config.json
   await writeFile(
     path.join(zcodeRoot, "config.json"),
     resolvePlaceholders(getHooksConfig().content),

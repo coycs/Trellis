@@ -8,7 +8,6 @@ import {
   resolveBundledSkills,
   writeSkills,
   writeAgents,
-  writeSharedHooks,
   applyPullBasedPreludeMarkdown,
 } from "./shared.js";
 import {
@@ -25,7 +24,7 @@ import {
  *   which collided with Codex's identical write target and caused
  *   duplicate-skill warnings — issue #224).
  * - agents/{name}.md — sub-agent definitions, with pull-based prelude
- * - hooks/*.py — session-start only (no inject-subagent-context.py — Gemini
+ * - settings.json — direct session/workflow hooks (Gemini
  *   BeforeTool can fire but #18128 limits chain-of-thought visibility; sub-agents
  *   Read jsonl/prd themselves)
  * - settings.json — hook configuration (SessionStart + BeforeAgent)
@@ -54,8 +53,6 @@ export async function configureGemini(cwd: string): Promise<void> {
     path.join(configRoot, "agents"),
     applyPullBasedPreludeMarkdown(getAllAgents()),
   );
-  await writeSharedHooks(path.join(configRoot, "hooks"), "gemini");
-
   await writeFile(
     path.join(configRoot, "settings.json"),
     resolvePlaceholders(getSettingsTemplate()),

@@ -500,7 +500,7 @@ flags:
   --limit N                              cap output (default 50)
   --grep KW                              extract / context: filter turns by keyword (multi-token AND)
   --phase brainstorm|implement|all       extract: slice by Trellis brainstorm windows
-                                         (default all; brainstorm = [task.py create, task.py start);
+                                         (default all; brainstorm = [trellis task create, trellis task start);
                                          Claude/Codex/Pi/ZCode supported; OpenCode warns + returns all)
   --turns N                              context: number of hit turns to return (default 3)
   --around N                             context: turns of surrounding context per hit (default 1)

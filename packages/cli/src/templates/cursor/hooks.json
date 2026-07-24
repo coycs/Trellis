@@ -3,21 +3,15 @@
   "hooks": {
     "preToolUse": [
       {
-        "command": "{{PYTHON_CMD}} .cursor/hooks/inject-subagent-context.py",
+        "command": "trellis hook subagent --platform cursor",
         "matcher": "Task|Subagent",
         "timeout": 30
       }
     ],
     "sessionStart": [
       {
-        "command": "{{PYTHON_CMD}} .cursor/hooks/session-start.py",
+        "command": "trellis hook session --platform cursor",
         "timeout": 30
-      }
-    ],
-    "beforeShellExecution": [
-      {
-        "command": "{{PYTHON_CMD}} .cursor/hooks/inject-shell-session-context.py",
-        "timeout": 5
       }
     ]
   }

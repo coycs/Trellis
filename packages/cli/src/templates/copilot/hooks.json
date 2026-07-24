@@ -3,15 +3,15 @@
     "SessionStart": [
       {
         "type": "command",
-        "command": "{{PYTHON_CMD}} .github/copilot/hooks/session-start.py",
+        "command": "trellis hook session --platform copilot",
         "timeout": 30
       }
     ],
     "userPromptSubmitted": [
       {
         "type": "command",
-        "bash": "{{PYTHON_CMD}} .github/copilot/hooks/inject-workflow-state.py",
-        "powershell": "{{PYTHON_CMD}} .github/copilot/hooks/inject-workflow-state.py",
+        "bash": "trellis hook workflow --platform copilot",
+        "powershell": "trellis hook workflow --platform copilot",
         "timeoutSec": 15
       }
     ]

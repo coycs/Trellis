@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .gemini/hooks/session-start.py",
+            "command": "trellis hook session --platform gemini",
             "timeout": 30000
           }
         ]
@@ -18,7 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .gemini/hooks/inject-workflow-state.py",
+            "command": "trellis hook workflow --platform gemini",
             "timeout": 15000
           }
         ]

@@ -147,8 +147,6 @@ export interface AIToolConfig {
   cliFlag: CliFlag;
   /** Whether this tool is checked by default in interactive init prompt */
   defaultChecked: boolean;
-  /** Whether this tool uses Python hooks (affects Windows encoding detection) */
-  hasPythonHooks: boolean;
   /** Template context for placeholder resolution in common templates */
   templateContext: TemplateContext;
 }
@@ -171,7 +169,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     configDir: ".claude",
     cliFlag: "claude",
     defaultChecked: true,
-    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "/trellis:",
       executorAI: "Bash scripts or Task calls",
@@ -187,7 +184,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     configDir: ".cursor",
     cliFlag: "cursor",
     defaultChecked: true,
-    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "/trellis-",
       executorAI: "Bash scripts or Task calls",
@@ -209,7 +205,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     // that never happened for OpenCode, so `resolveCommands`/`filterCommands`
     // (see configurators/shared.ts) still generate `/start` as the live
     // fallback command for this `agentCapable && !hasHooks` platform.
-    hasPythonHooks: false,
     templateContext: {
       cmdRefPrefix: "/trellis:",
       executorAI: "Bash scripts or Task calls",
@@ -226,7 +221,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     supportsAgentSkills: true,
     cliFlag: "codex",
     defaultChecked: false,
-    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "$",
       executorAI: "Bash scripts or tool calls",
@@ -242,7 +236,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     configDir: ".kilocode",
     cliFlag: "kilo",
     defaultChecked: false,
-    hasPythonHooks: false,
     templateContext: {
       cmdRefPrefix: "/trellis:",
       executorAI: "Bash scripts or file reads",
@@ -259,7 +252,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     extraManagedPaths: [".kiro/agents", ".kiro/hooks"],
     cliFlag: "kiro",
     defaultChecked: false,
-    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "$",
       executorAI: "Bash scripts or tool calls",
@@ -276,7 +268,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     supportsAgentSkills: true,
     cliFlag: "gemini",
     defaultChecked: false,
-    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "/trellis:",
       executorAI: "Bash scripts or tool calls",
@@ -293,7 +284,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     extraManagedPaths: [".agent/skills"],
     cliFlag: "antigravity",
     defaultChecked: false,
-    hasPythonHooks: false,
     templateContext: {
       cmdRefPrefix: "/",
       executorAI: "Bash scripts or file reads",
@@ -310,7 +300,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     extraManagedPaths: [".devin/skills"],
     cliFlag: "devin",
     defaultChecked: false,
-    hasPythonHooks: false,
     templateContext: {
       cmdRefPrefix: "/trellis-",
       executorAI: "Bash scripts or file reads",
@@ -326,7 +315,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     configDir: ".qoder",
     cliFlag: "qoder",
     defaultChecked: false,
-    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "$",
       executorAI: "Bash scripts or tool calls",
@@ -342,7 +330,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     configDir: ".codebuddy",
     cliFlag: "codebuddy",
     defaultChecked: false,
-    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "/trellis:",
       executorAI: "Bash scripts or Task calls",
@@ -365,7 +352,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     ],
     cliFlag: "copilot",
     defaultChecked: false,
-    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "/",
       executorAI: "Bash scripts or tool calls",
@@ -381,7 +367,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     configDir: ".factory",
     cliFlag: "droid",
     defaultChecked: false,
-    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "/trellis-",
       executorAI: "Bash scripts or Task calls",
@@ -402,7 +387,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     supportsAgentSkills: true,
     cliFlag: "pi",
     defaultChecked: false,
-    hasPythonHooks: false,
     templateContext: {
       cmdRefPrefix: "/trellis-",
       executorAI: "Bash scripts or tool calls",
@@ -418,7 +402,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     configDir: ".reasonix",
     cliFlag: "reasonix",
     defaultChecked: false,
-    hasPythonHooks: false,
     templateContext: {
       cmdRefPrefix: "/skill trellis-",
       executorAI: "Bash scripts or tool calls",
@@ -448,7 +431,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     ],
     cliFlag: "zcode",
     defaultChecked: false,
-    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "/trellis:",
       executorAI: "Bash scripts or Agent calls",
@@ -467,7 +449,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     configDir: ".trae",
     cliFlag: "trae",
     defaultChecked: false,
-    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "/trellis-",
       executorAI: "Bash scripts or tool calls",
@@ -483,7 +464,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     configDir: ".omp",
     cliFlag: "omp",
     defaultChecked: false,
-    hasPythonHooks: false,
     templateContext: {
       cmdRefPrefix: "/trellis:",
       executorAI: "Bash scripts or Task calls",
@@ -498,7 +478,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
    *
    * Phase 0 verified (Grok 0.2.101): skills/agents/AGENTS.md load correctly;
    * Claude-style hook `additionalContext` is NOT injected into the model.
-   * Do not set hasHooks/hasPythonHooks true until Grok consumes hook stdout.
    * Commands are flat under `.grok/commands/trellis-*.md` (Grok slash-command layout).
    */
   grok: {
@@ -508,7 +487,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     extraManagedPaths: [".grok/skills", ".grok/commands", ".grok/agents"],
     cliFlag: "grok",
     defaultChecked: false,
-    hasPythonHooks: false,
     templateContext: {
       cmdRefPrefix: "/trellis-",
       executorAI: "Bash scripts or Agent calls",
@@ -541,7 +519,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     supportsAgentSkills: true,
     cliFlag: "kimi",
     defaultChecked: false,
-    hasPythonHooks: false,
     templateContext: {
       cmdRefPrefix: "/skill:trellis-",
       executorAI: "Bash scripts or Agent calls",
@@ -560,7 +537,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
    * Hooks: `.snow/hooks/` emit additionalContext JSON (session/user/sub-agent)
    *
    * hasHooks=true: SessionStart injects context -> trellis-start is filtered out.
-   * hasPythonHooks=true: ships write-trellis-context.py under .snow/hooks/.
    * Primary agent path is `.snow/agents/*.md` only (no legacy JSON fragment).
    *
    * CLI flag: `--snow`.
@@ -579,7 +555,6 @@ export const AI_TOOLS: Record<AITool, AIToolConfig> = {
     ],
     cliFlag: "snow",
     defaultChecked: false,
-    hasPythonHooks: true,
     templateContext: {
       cmdRefPrefix: "/trellis-",
       executorAI: "Bash scripts or Agent calls",

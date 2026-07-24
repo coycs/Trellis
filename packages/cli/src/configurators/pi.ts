@@ -4,7 +4,6 @@ import { ensureDir, writeFile } from "../utils/file-writer.js";
 import {
   applyPullBasedPreludeMarkdown,
   collectSkillTemplates,
-  replacePythonCommandLiterals,
   resolveCommands,
   resolveBundledSkills,
   resolvePlaceholders,
@@ -95,7 +94,7 @@ export async function configurePi(cwd: string): Promise<void> {
   ensureDir(path.join(configRoot, "extensions", "trellis"));
   await writeFile(
     path.join(configRoot, "extensions", "trellis", "index.ts"),
-    replacePythonCommandLiterals(getExtensionTemplate()),
+    getExtensionTemplate(),
   );
 
   const settings = getSettingsTemplate();

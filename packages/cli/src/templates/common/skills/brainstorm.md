@@ -6,7 +6,7 @@ A request to build, implement, fix, refactor, or "go ahead" is not approval to l
 
 For every non-trivial task, the user must respond at least once after the initial request before implementation begins. If no clarification is needed, that response must approve the final planning summary described below.
 
-While any user-owned product, scope, UX, compatibility, risk, or acceptance decision remains unresolved, end the turn with exactly one highest-value question. Do not edit product code, dispatch implementation, or run `task.py start`.
+While any user-owned product, scope, UX, compatibility, risk, or acceptance decision remains unresolved, end the turn with exactly one highest-value question. Do not edit product code, dispatch implementation, or run `trellis task start`.
 
 ## Non-Negotiable Evidence Rule
 
@@ -29,12 +29,12 @@ Use this skill only after task-creation consent has been given and the user is r
 If no task exists yet, create one:
 
 ```bash
-TASK_DIR=$({{PYTHON_CMD}} ./.trellis/scripts/task.py create "<short task title>" --slug <slug>)
+TASK_DIR=$(trellis task create "<short task title>" --slug <slug>)
 ```
 
-Use a concise title from the user's request. Use a slug without a date prefix. `task.py create` adds the `MM-DD-` directory prefix automatically.
+Use a concise title from the user's request. Use a slug without a date prefix. `trellis task create` adds the `MM-DD-` directory prefix automatically.
 
-`task.py create` creates the default `prd.md`. Update that file with the current understanding before asking follow-up questions.
+`trellis task create` creates the default `prd.md`. Update that file with the current understanding before asking follow-up questions.
 
 ## Planning Flow
 
@@ -52,8 +52,8 @@ Use a concise title from the user's request. Use a slug without a date prefix. `
 5. After each user answer, update `prd.md`, recompute the decision inventory, and repeat from step 2.
 6. When no user-owned decision remains, create or update `design.md` and `implement.md` for complex tasks.
 7. Run the requirement convergence gate, then the PRD convergence pass.
-8. Present the final planning summary and stop. Do not run `task.py start` or edit product code in the same turn.
-9. Only a subsequent user message that explicitly approves the latest planning summary authorizes `task.py start` and implementation. If the artifacts change materially after approval, repeat the final review.
+8. Present the final planning summary and stop. Do not run `trellis task start` or edit product code in the same turn.
+9. Only a subsequent user message that explicitly approves the latest planning summary authorizes `trellis task start` and implementation. If the artifacts change materially after approval, repeat the final review.
 
 Do not invent a project-specific product/spec hierarchy. If the repository already has product, domain, or spec docs, use them. If it does not, proceed with the evidence that exists.
 
@@ -158,15 +158,15 @@ The final planning summary must show Goal, In Scope, Out of Scope, Acceptance Cr
 - ordered implementation checklist
 - validation commands
 - risky files or rollback points
-- follow-up checks before `task.py start`
+- follow-up checks before `trellis task start`
 
-Lightweight tasks may have only `prd.md`. Complex tasks must have `prd.md`, `design.md`, and `implement.md` before `task.py start`.
+Lightweight tasks may have only `prd.md`. Complex tasks must have `prd.md`, `design.md`, and `implement.md` before `trellis task start`.
 
-`implement.md` is not a replacement for `implement.jsonl`. On sub-agent-dispatch workflows, `implement.jsonl` and `check.jsonl` must each contain at least one real spec/research entry before `task.py start`; the seed `_example` row does not count. Inline workflows skip this JSONL gate because Phase 2 loads context through `trellis-before-dev`.
+`implement.md` is not a replacement for `implement.jsonl`. On sub-agent-dispatch workflows, `implement.jsonl` and `check.jsonl` must each contain at least one real spec/research entry before `trellis task start`; the seed `_example` row does not count. Inline workflows skip this JSONL gate because Phase 2 loads context through `trellis-before-dev`.
 
 ## PRD Convergence Pass
 
-Before declaring planning ready or running `task.py start`, rewrite `prd.md` once against the final structure described in the artifact rules above. This is not optional cleanup; it is the final planning gate.
+Before declaring planning ready or running `trellis task start`, rewrite `prd.md` once against the final structure described in the artifact rules above. This is not optional cleanup; it is the final planning gate.
 
 The pass must be lossless:
 

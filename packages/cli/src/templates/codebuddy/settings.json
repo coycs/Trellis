@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .codebuddy/hooks/session-start.py",
+            "command": "trellis hook session --platform codebuddy",
             "timeout": 30
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .codebuddy/hooks/session-start.py",
+            "command": "trellis hook session --platform codebuddy",
             "timeout": 30
           }
         ]
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .codebuddy/hooks/session-start.py",
+            "command": "trellis hook session --platform codebuddy",
             "timeout": 30
           }
         ]
@@ -38,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .codebuddy/hooks/inject-subagent-context.py",
+            "command": "trellis hook subagent --platform codebuddy",
             "timeout": 30
           }
         ]
@@ -49,7 +49,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .codebuddy/hooks/inject-workflow-state.py",
+            "command": "trellis hook workflow --platform codebuddy",
             "timeout": 15
           }
         ]

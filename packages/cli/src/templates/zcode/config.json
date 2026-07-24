@@ -8,7 +8,7 @@
           "hooks": [
             {
               "type": "command",
-              "command": "{{PYTHON_CMD}} \"${ZCODE_PROJECT_DIR}/.zcode/hooks/session-start.py\"",
+              "command": "trellis hook session --platform zcode",
               "timeout": 30
             }
           ]
@@ -19,7 +19,7 @@
           "hooks": [
             {
               "type": "command",
-              "command": "{{PYTHON_CMD}} \"${ZCODE_PROJECT_DIR}/.zcode/hooks/inject-workflow-state.py\"",
+              "command": "trellis hook workflow --platform zcode",
               "timeout": 15
             }
           ]
@@ -31,7 +31,7 @@
           "hooks": [
             {
               "type": "command",
-              "command": "{{PYTHON_CMD}} \"${ZCODE_PROJECT_DIR}/.zcode/hooks/inject-subagent-context.py\"",
+              "command": "trellis hook subagent --platform zcode",
               "timeout": 30
             }
           ]

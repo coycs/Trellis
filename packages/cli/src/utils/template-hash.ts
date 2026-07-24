@@ -158,6 +158,17 @@ export function removeHash(cwd: string, relativePath: string): void {
   saveHashes(cwd, rest);
 }
 
+export function removeHashPrefix(cwd: string, relativePath: string): void {
+  const prefix = `${toPosix(relativePath).replace(/\/$/, "")}/`;
+  const hashes = loadHashes(cwd);
+  saveHashes(
+    cwd,
+    Object.fromEntries(
+      Object.entries(hashes).filter(([key]) => !key.startsWith(prefix)),
+    ),
+  );
+}
+
 /**
  * Rename hash entry (used after file rename)
  */

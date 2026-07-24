@@ -25,7 +25,7 @@ Rules:
 - Read before write. Follow `.trellis/spec/` guidance relevant to the task.
 - Keep changes focused on the requested scope.
 - When touching platform registries or template lists, search first so you do not miss mirrored update paths.
-- If you modify `.trellis/scripts/`, keep `packages/cli/src/templates/trellis/scripts/` in sync.
+- Keep workflow runtime changes in the TypeScript CLI; generated projects are data-only.
 - Do not make destructive git changes unless explicitly asked.
 
 Before finishing, summarize:

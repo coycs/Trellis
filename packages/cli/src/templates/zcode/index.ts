@@ -11,7 +11,7 @@
  * research directory instead.
  *
  * ZCode 3.x supports a workspace hook config at `.zcode/config.json`
- * (SessionStart + UserPromptSubmit). Shared Python hook scripts are written
+ * (SessionStart + UserPromptSubmit). Direct Trellis CLI hook commands are written
  * to `.zcode/hooks/` and registered via the config. The config schema is the
  * workspace form: `{ hooks: { enabled: true, events: { <Event>: [...] } } }`
  * — distinct from plugin `hooks.json` files (no `enabled`/`events` wrapper).

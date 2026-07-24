@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .claude/hooks/session-start.py",
+            "command": "trellis hook session --platform claude",
             "timeout": 30
           }
         ]
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .claude/hooks/session-start.py",
+            "command": "trellis hook session --platform claude",
             "timeout": 30
           }
         ]
@@ -29,7 +29,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .claude/hooks/session-start.py",
+            "command": "trellis hook session --platform claude",
             "timeout": 30
           }
         ]
@@ -41,7 +41,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .claude/hooks/inject-subagent-context.py",
+            "command": "trellis hook subagent --platform claude",
             "timeout": 30
           }
         ]
@@ -51,7 +51,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .claude/hooks/inject-subagent-context.py",
+            "command": "trellis hook subagent --platform claude",
             "timeout": 30
           }
         ]
@@ -62,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .claude/hooks/inject-workflow-state.py",
+            "command": "trellis hook workflow --platform claude",
             "timeout": 15
           }
         ]

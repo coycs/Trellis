@@ -22,7 +22,7 @@ You are already the `trellis-check` sub-agent that the main session dispatched. 
 
 Kimi Code has no project-level custom sub-agent definitions — only the built-in `coder` / `explore` / `plan` sub-agents. The main session dispatches the built-in `coder` sub-agent via the Agent tool with a prompt that:
 
-1. Starts with `Active task: <path from task.py current>`
+1. Starts with `Active task: <path from trellis task current>`
 2. Includes this skill's instructions (`.kimi-code/skills/trellis-check/SKILL.md`)
 3. States that the spawned agent is already `trellis-check` and must review/fix directly without spawning another `trellis-check` / `trellis-implement`
 

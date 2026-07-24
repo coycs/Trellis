@@ -29,23 +29,26 @@ describe("writeFileAtomic", () => {
     expect(fs.readdirSync(dir)).toEqual(["a.json"]);
   });
 
-  it("preserves the original file when the write fails", () => {
-    const f = path.join(dir, "keep.json");
-    writeFileAtomic(f, "original");
-    // A directory in place of the temp target's parent is not the failure we
-    // model; instead force a rename failure by pointing at an unwritable dir.
-    const roDir = path.join(dir, "ro");
-    fs.mkdirSync(roDir);
-    const target = path.join(roDir, "x.json");
-    writeFileAtomic(target, "first");
-    fs.chmodSync(roDir, 0o500); // read+execute only, no write
-    try {
-      expect(() => writeFileAtomic(target, "second")).toThrow();
-      // Original survives; no half-written temp left in the dir.
-      expect(fs.readFileSync(target, "utf-8")).toBe("first");
-      expect(fs.readdirSync(roDir)).toEqual(["x.json"]);
-    } finally {
-      fs.chmodSync(roDir, 0o700);
-    }
-  });
+  it.skipIf(process.platform === "win32")(
+    "preserves the original file when the write fails",
+    () => {
+      const f = path.join(dir, "keep.json");
+      writeFileAtomic(f, "original");
+      // A directory in place of the temp target's parent is not the failure we
+      // model; instead force a rename failure by pointing at an unwritable dir.
+      const roDir = path.join(dir, "ro");
+      fs.mkdirSync(roDir);
+      const target = path.join(roDir, "x.json");
+      writeFileAtomic(target, "first");
+      fs.chmodSync(roDir, 0o500); // read+execute only, no write
+      try {
+        expect(() => writeFileAtomic(target, "second")).toThrow();
+        // Original survives; no half-written temp left in the dir.
+        expect(fs.readFileSync(target, "utf-8")).toBe("first");
+        expect(fs.readdirSync(roDir)).toEqual(["x.json"]);
+      } finally {
+        fs.chmodSync(roDir, 0o700);
+      }
+    },
+  );
 });

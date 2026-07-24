@@ -1265,7 +1265,7 @@ describe.skipIf(!ZCODE_PY)("zcodeListSessions / zcodeExtractDialogue", () => {
     expect(turns[0]?.text).toBe("real question trailing");
   });
 
-  it("detects task.py create/start commands in Bash tool parts", () => {
+  it("detects trellis task create/start commands in Bash tool parts", () => {
     buildZcodeDb({
       sessions: [
         { id: "s1", directory: "/p", time_created: 1, time_updated: 2 },
@@ -1288,8 +1288,7 @@ describe.skipIf(!ZCODE_PY)("zcodeListSessions / zcodeExtractDialogue", () => {
             tool: "Bash",
             state: {
               input: {
-                command:
-                  'py ./.trellis/scripts/task.py create "my task" --slug my-task',
+                command: 'trellis task create "my task" --slug my-task',
               },
             },
           },
@@ -1302,8 +1301,7 @@ describe.skipIf(!ZCODE_PY)("zcodeListSessions / zcodeExtractDialogue", () => {
             tool: "Bash",
             state: {
               input: {
-                command:
-                  "py ./.trellis/scripts/task.py start .trellis/tasks/01-01-my-task",
+                command: "trellis task start .trellis/tasks/01-01-my-task",
               },
             },
           },
@@ -1438,8 +1436,7 @@ describe.skipIf(!ZCODE_PY)("zcodeListSessions / zcodeExtractDialogue", () => {
             tool: "Bash",
             state: {
               input: {
-                command:
-                  'py ./.trellis/scripts/task.py create "old task" --slug old-task',
+                command: 'trellis task create "old task" --slug old-task',
               },
             },
           },
@@ -1484,8 +1481,7 @@ describe.skipIf(!ZCODE_PY)("zcodeListSessions / zcodeExtractDialogue", () => {
             tool: "Bash",
             state: {
               input: {
-                command:
-                  "py ./.trellis/scripts/task.py start .trellis/tasks/01-01-new-task",
+                command: "trellis task start .trellis/tasks/01-01-new-task",
               },
             },
           },

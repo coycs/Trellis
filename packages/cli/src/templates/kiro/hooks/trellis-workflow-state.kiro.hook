@@ -8,7 +8,7 @@
   },
   "then": {
     "type": "runCommand",
-    "command": "{{PYTHON_CMD}} .kiro/hooks/inject-workflow-state.py",
+    "command": "trellis hook workflow --platform kiro",
     "timeout": 30
   }
 }

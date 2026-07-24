@@ -11,12 +11,7 @@ import {
   resolveCliFlag,
   configurePlatform,
   getConfiguredPlatforms,
-  getPlatformsWithPythonHooks,
 } from "../configurators/index.js";
-import {
-  getPythonCommandForPlatform,
-  setResolvedPythonCommand,
-} from "../configurators/shared.js";
 import { AI_TOOLS, type CliFlag } from "../types/ai-tools.js";
 import { DIR_NAMES, FILE_NAMES, PATHS } from "../constants/paths.js";
 import { VERSION } from "../constants/version.js";
@@ -67,10 +62,6 @@ import { setupProxy, maskProxyUrl } from "../utils/proxy.js";
 import { toPosix } from "../utils/posix.js";
 import { updateHashes } from "../utils/template-hash.js";
 
-const MIN_PYTHON_MAJOR = 3;
-const MIN_PYTHON_MINOR = 9;
-const PYTHON_VERSION_RE = /Python (\d+)\.(\d+)/;
-
 function collectSpecPaths(cwd: string): Set<string> {
   const specRoot = path.join(cwd, PATHS.SPEC);
   const paths = new Set<string>();
@@ -88,202 +79,6 @@ function collectSpecPaths(cwd: string): Set<string> {
   };
   walk(specRoot);
   return paths;
-}
-
-export function isSupportedPythonVersion(versionOutput: string): boolean {
-  const match = versionOutput.match(PYTHON_VERSION_RE);
-  if (!match) return false;
-
-  const major = Number(match[1]);
-  const minor = Number(match[2]);
-  return (
-    major > MIN_PYTHON_MAJOR ||
-    (major === MIN_PYTHON_MAJOR && minor >= MIN_PYTHON_MINOR)
-  );
-}
-
-// Sentinel returned when child_process spawn is blocked by a sandbox / kernel
-// policy (e.g. seccomp inside Codex's Linux sandbox). EPERM/EACCES here mean
-// "the kernel refused the spawn" — NOT "python3 isn't installed". The host
-// usually has python3 on PATH; we just can't probe it from this Node process.
-type PythonProbe = string | null | "sandbox-restricted";
-
-function detectPythonVersion(command: string): PythonProbe {
-  try {
-    return execSync(`${command} --version`, {
-      encoding: "utf-8",
-      stdio: "pipe",
-    }).trim();
-  } catch (err) {
-    const code = (err as NodeJS.ErrnoException)?.code;
-    if (code === "EPERM" || code === "EACCES") {
-      return "sandbox-restricted";
-    }
-    return null;
-  }
-}
-
-export function requireSupportedPython(command: string): string {
-  // Final escape hatch — set when the user knows python3 is on PATH but
-  // the probe keeps failing for environment-specific reasons.
-  if (process.env.TRELLIS_SKIP_PYTHON_CHECK === "1") {
-    return `version check skipped (TRELLIS_SKIP_PYTHON_CHECK=1)`;
-  }
-
-  const versionOutput = detectPythonVersion(command);
-
-  if (versionOutput === "sandbox-restricted") {
-    console.warn(
-      chalk.yellow(
-        `⚠ Python version check skipped — sandboxed environment blocked ` +
-          `child_process spawn (EPERM/EACCES). Assuming "${command}" is on ` +
-          `PATH. If init fails later, re-run on the host or set ` +
-          `TRELLIS_SKIP_PYTHON_CHECK=1.`,
-      ),
-    );
-    return `version unknown (sandbox-restricted)`;
-  }
-
-  if (!versionOutput) {
-    throw new Error(
-      `Python command "${command}" not found. Trellis init requires Python ≥ 3.9.`,
-    );
-  }
-
-  if (!isSupportedPythonVersion(versionOutput)) {
-    throw new Error(
-      `${versionOutput} detected via "${command}", but Trellis init requires Python ≥ 3.9.`,
-    );
-  }
-
-  return versionOutput;
-}
-
-/**
- * Candidate Python command list per platform.
- *
- * Windows: `python` is the usual python.org installer choice, but Microsoft
- * Store ships `python3`, and the `py` launcher is `py -3`. We try all three
- * before giving up — fixes #236 where users with only `python3` (not
- * `python`) had `trellis init` fail outright.
- *
- * Non-Windows: `python3` is canonical; `python` is a fallback for systems
- * where Python 3 is the only Python and is named `python` (some Arch
- * configs, conda envs).
- */
-const PYTHON_CANDIDATES: Record<"win32" | "other", readonly string[]> = {
-  win32: ["python", "python3", "py -3"],
-  other: ["python3", "python"],
-};
-
-/**
- * Detect a working Python ≥ 3.9 command on the host platform.
- *
- * Honors `TRELLIS_PYTHON_CMD` (explicit override, no probe) and
- * `TRELLIS_SKIP_PYTHON_CHECK=1` (skip probe, trust platform default).
- *
- * Otherwise tries each candidate in `PYTHON_CANDIDATES` in order and returns
- * the first whose `--version` matches `Python ≥ 3.9`. Caches the result via
- * `setResolvedPythonCommand` so all downstream template / configurator
- * writes pick up the resolved value.
- *
- * Throws a helpful, Windows-aware error if no candidate works.
- */
-export function resolveSupportedPython(): {
-  command: string;
-  version: string;
-} {
-  // Explicit override — user knows their environment.
-  const override = process.env.TRELLIS_PYTHON_CMD?.trim();
-  if (override) {
-    setResolvedPythonCommand(override);
-    return { command: override, version: "set via TRELLIS_PYTHON_CMD" };
-  }
-
-  // Skip probe entirely.
-  if (process.env.TRELLIS_SKIP_PYTHON_CHECK === "1") {
-    const fallback = getPythonCommandForPlatform();
-    setResolvedPythonCommand(fallback);
-    return {
-      command: fallback,
-      version: "version check skipped (TRELLIS_SKIP_PYTHON_CHECK=1)",
-    };
-  }
-
-  const candidates =
-    process.platform === "win32"
-      ? PYTHON_CANDIDATES.win32
-      : PYTHON_CANDIDATES.other;
-
-  const probeFailures: string[] = [];
-  for (const candidate of candidates) {
-    const probe = detectPythonVersion(candidate);
-    if (probe === "sandbox-restricted") {
-      console.warn(
-        chalk.yellow(
-          `⚠ Python version check skipped — sandboxed environment blocked ` +
-            `child_process spawn (EPERM/EACCES). Assuming "${candidate}" is ` +
-            `on PATH. If init fails later, re-run on the host or set ` +
-            `TRELLIS_SKIP_PYTHON_CHECK=1.`,
-        ),
-      );
-      setResolvedPythonCommand(candidate);
-      return {
-        command: candidate,
-        version: "version unknown (sandbox-restricted)",
-      };
-    }
-    if (!probe) {
-      probeFailures.push(`${candidate}: not found`);
-      continue;
-    }
-    if (!isSupportedPythonVersion(probe)) {
-      probeFailures.push(`${candidate}: ${probe} (< 3.9)`);
-      continue;
-    }
-    setResolvedPythonCommand(candidate);
-    return { command: candidate, version: probe };
-  }
-
-  const isWindows = process.platform === "win32";
-  const installHint = isWindows
-    ? `Install Python ≥ 3.9 from https://www.python.org/downloads/windows/ — make sure ` +
-      `"Add Python to PATH" is checked in the installer. Or, if Python is ` +
-      `installed under a different name, set TRELLIS_PYTHON_CMD=<your-cmd> ` +
-      `before re-running init (e.g. \`set TRELLIS_PYTHON_CMD=py -3\`).`
-    : `Install Python ≥ 3.9 from https://www.python.org/downloads/ or via your ` +
-      `package manager. Or set TRELLIS_PYTHON_CMD=<your-cmd> before re-running.`;
-
-  throw new Error(
-    `No supported Python command found. Tried: ${candidates.join(", ")}.\n` +
-      `Probe results:\n  ${probeFailures.join("\n  ")}\n\n` +
-      `Trellis init requires Python ≥ 3.9. ${installHint}\n` +
-      `Last-resort escape hatch: set TRELLIS_SKIP_PYTHON_CHECK=1 to skip the probe entirely.`,
-  );
-}
-
-function getOsDisplayName(
-  platform: NodeJS.Platform = process.platform,
-): string {
-  switch (platform) {
-    case "win32":
-      return "Windows";
-    case "darwin":
-      return "macOS";
-    case "linux":
-      return "Linux";
-    default:
-      return platform;
-  }
-}
-
-function logPythonAdaptationNotice(command: string): void {
-  const osName = getOsDisplayName();
-  console.log(
-    chalk.blue(
-      `📌 ${osName} detected: Trellis rendered Python commands as "${command}" in generated hooks, settings, and help text`,
-    ),
-  );
 }
 
 // =============================================================================
@@ -343,8 +138,7 @@ function writeTaskSkeleton(
  * Compute the bootstrap checklist items (previously stored as structured
  * `subtasks: [{name, status}]` in task.json). Per task 04-21-task-schema-unify
  * (D1), these live as markdown `- [ ]` items in prd.md instead, so task.json
- * stays canonical with `subtasks: string[]` (child task dir names, same as
- * task_store.py).
+ * stays canonical with `subtasks: string[]`.
  */
 function getBootstrapChecklistItems(
   projectType: ProjectType,
@@ -386,7 +180,6 @@ function getBootstrapRelatedFiles(
 
 function getBootstrapPrdContent(
   projectType: ProjectType,
-  pythonCmd: string,
   packages?: DetectedPackage[],
 ): string {
   const checklistItems = getBootstrapChecklistItems(projectType, packages);
@@ -521,7 +314,7 @@ When the developer confirms the checklist items above are done with real
 examples (not placeholders), guide them to run:
 
 \`\`\`bash
-${pythonCmd} ./.trellis/scripts/task.py archive 00-bootstrap-guidelines
+trellis task archive 00-bootstrap-guidelines
 \`\`\`
 
 After archive, every new developer who joins this project will get a
@@ -601,12 +394,11 @@ function getBootstrapTaskJson(
 function createBootstrapTask(
   cwd: string,
   developer: string,
-  pythonCmd: string,
   projectType: ProjectType,
   packages?: DetectedPackage[],
 ): boolean {
   const taskJson = getBootstrapTaskJson(developer, projectType, packages);
-  const prdContent = getBootstrapPrdContent(projectType, pythonCmd, packages);
+  const prdContent = getBootstrapPrdContent(projectType, packages);
   return writeTaskSkeleton(cwd, BOOTSTRAP_TASK_NAME, taskJson, prdContent);
 }
 
@@ -642,7 +434,7 @@ function getJoinerTaskJson(developer: string, taskName: string): TaskJson {
  * PRD content for joiner onboarding. Kept concise (~80 lines) — deeper
  * guidance lives in skills and docs.
  */
-function getJoinerPrdContent(developer: string, pythonCmd: string): string {
+function getJoinerPrdContent(developer: string): string {
   const slug = slugifyDeveloperName(developer);
   return `# Joiner Onboarding Task
 
@@ -679,7 +471,7 @@ code every session.
 
 ### 2. Runtime mechanics (explain when they ask "how does it know what to do")
 
-- **SessionStart hook** runs \`get_context.py\` and injects identity, git
+- **SessionStart hook** runs \`trellis context\` and injects identity, git
   status, session active task, active tasks, and workflow phase into the AI
   conversation at every session start.
 - **\`<workflow-state>\` tag** is auto-injected with every user message,
@@ -698,8 +490,6 @@ File layout (mention when they ask "where does what live"):
 - \`.trellis/.runtime/sessions/<session>.json\` — session active-task state, gitignored
 - \`.trellis/tasks/<task>/{implement,check}.jsonl\` — per-task context manifests
 - \`.trellis/spec/\` — project-wide conventions (source of truth)
-- \`.trellis/workspace/${developer}/journal-*.md\` — their session log,
-  rotated at ~2000 lines
 
 ### 3. This project's actual conventions
 
@@ -713,9 +503,7 @@ File layout (mention when they ask "where does what live"):
 
 ### 4. Their assigned work
 
-- Check if \`.trellis/workspace/${developer}/\` already exists — if yes, it's
-  their journal from another machine and worth mentioning.
-- Run \`${pythonCmd} ./.trellis/scripts/task.py list --assignee ${developer}\` to
+- Run \`trellis task list\` to
   show tasks assigned to them. (Quote the name if it contains spaces.)
 - Remind them that the "My Tasks" section appears in the SessionStart context
   on every new session.
@@ -736,7 +524,7 @@ When they feel oriented (or after you've covered the four topics with
 reasonable back-and-forth), guide them to run:
 
 \`\`\`bash
-${pythonCmd} ./.trellis/scripts/task.py archive 00-join-${slug}
+trellis task archive 00-join-${slug}
 \`\`\`
 
 ---
@@ -755,16 +543,19 @@ hood, summarize the team's spec, or jump to what you're already curious about
  * project. Task name is slugified to be filesystem-safe for arbitrary
  * developer names (spaces, Unicode, punctuation).
  */
-function createJoinerOnboardingTask(
-  cwd: string,
-  developer: string,
-  pythonCmd: string,
-): boolean {
+function createJoinerOnboardingTask(cwd: string, developer: string): boolean {
   const slug = slugifyDeveloperName(developer);
   const taskName = `00-join-${slug}`;
   const taskJson = getJoinerTaskJson(developer, taskName);
-  const prdContent = getJoinerPrdContent(developer, pythonCmd);
+  const prdContent = getJoinerPrdContent(developer);
   return writeTaskSkeleton(cwd, taskName, taskJson, prdContent);
+}
+
+function initializeDeveloper(cwd: string, developer: string): void {
+  fs.writeFileSync(
+    path.join(cwd, DIR_NAMES.WORKFLOW, FILE_NAMES.DEVELOPER),
+    `name=${developer}\ninitialized_at=${new Date().toISOString()}\n`,
+  );
 }
 
 /**
@@ -775,7 +566,6 @@ async function handleReinit(
   cwd: string,
   options: InitOptions,
   developerName: string | undefined,
-  pythonCmd: string,
 ): Promise<boolean> {
   const TOOLS = getInitToolChoices();
   const configuredPlatforms = getConfiguredPlatforms(cwd);
@@ -860,16 +650,6 @@ async function handleReinit(
       }
     }
 
-    // Opt-in Claude Code statusLine: only for platforms actually being added
-    // (already-configured ones are skipped in the loop below)
-    await maybePromptStatuslineOptIn(
-      options,
-      platformsToAdd.filter((tool) => {
-        const pid = resolveCliFlag(tool as CliFlag);
-        return !!pid && !configuredPlatforms.has(pid);
-      }),
-    );
-
     const reinitWritten = startRecordingWrites(cwd);
     try {
       for (const tool of platformsToAdd) {
@@ -885,16 +665,7 @@ async function handleReinit(
             console.log(
               chalk.blue(`📝 Configuring ${AI_TOOLS[platformId].name}...`),
             );
-            await configurePlatform(platformId, cwd, {
-              withStatusline: options.withStatusline,
-            });
-            if (platformId === "claude-code" && options.withStatusline) {
-              console.log(
-                chalk.gray(
-                  "   ↳ Trellis statusLine installed (--with-statusline)",
-                ),
-              );
-            }
+            await configurePlatform(platformId, cwd);
           }
         }
       }
@@ -927,35 +698,20 @@ async function handleReinit(
     }
 
     // Capture pre-init state: if .developer did not exist before we ran
-    // init_developer.py, this checkout had no identity → treat as a new
+    // developer initialization, this checkout had no identity → treat as a new
     // joiner onboarding onto an existing Trellis project.
     const hadDeveloperFileBefore = fs.existsSync(
       path.join(cwd, DIR_NAMES.WORKFLOW, FILE_NAMES.DEVELOPER),
     );
 
-    try {
-      const scriptPath = path.join(cwd, PATHS.SCRIPTS, "init_developer.py");
-      execSync(`${pythonCmd} "${scriptPath}" "${devName}"`, {
-        cwd,
-        stdio: "pipe",
-      });
-      console.log(chalk.green(`✓ Developer "${devName}" initialized`));
-    } catch {
-      console.log(
-        chalk.yellow("⚠ Could not initialize developer. Run manually:"),
-      );
-      console.log(
-        chalk.gray(
-          `  ${pythonCmd} .trellis/scripts/init_developer.py ${devName}`,
-        ),
-      );
-    }
+    initializeDeveloper(cwd, devName);
+    console.log(chalk.green(`✓ Developer "${devName}" initialized`));
 
     // Create joiner onboarding task for fresh checkouts (no prior .developer).
     // Runs outside the init_developer try/catch so failures surface as warnings.
     if (!hadDeveloperFileBefore) {
       try {
-        if (!createJoinerOnboardingTask(cwd, devName, pythonCmd)) {
+        if (!createJoinerOnboardingTask(cwd, devName)) {
           console.warn(
             chalk.yellow("⚠ Failed to create joiner onboarding task"),
           );
@@ -971,32 +727,6 @@ async function handleReinit(
   }
 
   return true;
-}
-
-/**
- * Interactive opt-in for the Claude Code statusLine when `--with-statusline`
- * was not passed. Fires only when Claude Code is among the platforms about to
- * be configured and never in -y mode. Mutates `options.withStatusline` so the
- * configurePlatform call sites and the install hint read the same answer; the
- * `!== undefined` gate doubles as the asked-once-per-run guard.
- */
-async function maybePromptStatuslineOptIn(
-  options: InitOptions,
-  toolKeys: string[],
-): Promise<void> {
-  if (options.yes || options.withStatusline !== undefined) return;
-  if (!toolKeys.includes(AI_TOOLS["claude-code"].cliFlag)) return;
-
-  const answer = await inquirer.prompt<{ withStatusline: boolean }>([
-    {
-      type: "confirm",
-      name: "withStatusline",
-      message:
-        "Install Trellis statusLine for Claude Code? (status bar: model, context, branch, rate limits)",
-      default: false,
-    },
-  ]);
-  options.withStatusline = answer.withStatusline;
 }
 
 interface InitOptions {
@@ -1032,8 +762,6 @@ interface InitOptions {
   append?: boolean;
   registry?: string;
   monorepo?: boolean;
-  /** Claude Code only: install the opt-in Trellis statusLine (--with-statusline) */
-  withStatusline?: boolean;
   workflow?: string;
   workflowSource?: string;
 }
@@ -1175,8 +903,6 @@ export async function init(options: InitOptions): Promise<void> {
     console.log(chalk.blue("👤 Developer:"), chalk.gray(developerName));
   }
 
-  const { command: pythonCmd } = resolveSupportedPython();
-
   // ==========================================================================
   // Re-init fast path: skip full flow when .trellis/ already exists
   // ==========================================================================
@@ -1197,12 +923,7 @@ export async function init(options: InitOptions): Promise<void> {
     !tasksEmptyEarly &&
     !hasTemplateRequest
   ) {
-    const reinitDone = await handleReinit(
-      cwd,
-      options,
-      developerName,
-      pythonCmd,
-    );
+    const reinitDone = await handleReinit(cwd, options, developerName);
     if (reinitDone) return;
     // reinitDone === false means user chose "full re-initialize" → fall through
   }
@@ -1211,8 +932,7 @@ export async function init(options: InitOptions): Promise<void> {
     // Ask for developer name if not detected and not in yes mode
     console.log(
       chalk.gray(
-        "\nTrellis supports team collaboration - each developer has their own\n" +
-          `workspace directory (${PATHS.WORKSPACE}/{name}/) to track AI sessions.\n` +
+        "\nTrellis uses your developer name for task ownership.\n" +
           "Tip: Usually this is your git username (git config user.name).\n",
       ),
     );
@@ -1469,9 +1189,6 @@ export async function init(options: InitOptions): Promise<void> {
     );
     return;
   }
-
-  // Opt-in Claude Code statusLine: confirm interactively when the flag wasn't passed
-  await maybePromptStatuslineOptIn(options, tools);
 
   // ==========================================================================
   // Template Selection (single-repo only; monorepo handles templates above)
@@ -1936,23 +1653,8 @@ export async function init(options: InitOptions): Promise<void> {
         console.log(
           chalk.blue(`📝 Configuring ${AI_TOOLS[platformId].name}...`),
         );
-        await configurePlatform(platformId, cwd, {
-          withStatusline: options.withStatusline,
-        });
-        if (platformId === "claude-code" && options.withStatusline) {
-          console.log(
-            chalk.gray("   ↳ Trellis statusLine installed (--with-statusline)"),
-          );
-        }
+        await configurePlatform(platformId, cwd);
       }
-    }
-
-    const pythonPlatforms = getPlatformsWithPythonHooks();
-    const hasSelectedPythonPlatform = pythonPlatforms.some((id) =>
-      tools.includes(AI_TOOLS[id].cliFlag),
-    );
-    if (hasSelectedPythonPlatform) {
-      logPythonAdaptationNotice(pythonCmd);
     }
 
     // Create root files (skip if exists)
@@ -1993,15 +1695,7 @@ export async function init(options: InitOptions): Promise<void> {
 
   // Initialize developer identity (silent - no output)
   if (developerName) {
-    try {
-      const scriptPath = path.join(cwd, PATHS.SCRIPTS, "init_developer.py");
-      execSync(`${pythonCmd} "${scriptPath}" "${developerName}"`, {
-        cwd,
-        stdio: "pipe", // Silent
-      });
-    } catch {
-      // Silent failure - user can run init_developer.py manually
-    }
+    initializeDeveloper(cwd, developerName);
 
     // Three-branch dispatch using flags captured at init() start (before
     // createWorkflowStructure/init_developer ran, so they reflect the disk
@@ -2023,16 +1717,10 @@ export async function init(options: InitOptions): Promise<void> {
       !fs.existsSync(tasksDir) || fs.readdirSync(tasksDir).length === 0;
 
     if (isFirstInit || tasksEmpty) {
-      createBootstrapTask(
-        cwd,
-        developerName,
-        pythonCmd,
-        projectType,
-        monorepoPackages,
-      );
+      createBootstrapTask(cwd, developerName, projectType, monorepoPackages);
     } else if (!hadDeveloperFileAtStart) {
       try {
-        if (!createJoinerOnboardingTask(cwd, developerName, pythonCmd)) {
+        if (!createJoinerOnboardingTask(cwd, developerName)) {
           console.warn(
             chalk.yellow("⚠ Failed to create joiner onboarding task"),
           );

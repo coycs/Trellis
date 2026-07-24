@@ -17,14 +17,14 @@ import {
   readJsonlFirst,
 } from "../internal/jsonl.js";
 import { CLAUDE_PROJECTS, claudeProjectDirFromCwd } from "../internal/paths.js";
-import { parseTaskPyCommandsAll } from "../phase.js";
+import { parseTaskCommandsAll } from "../phase.js";
 import { searchInDialogue } from "../search.js";
 import type {
   DialogueTurn,
   MemFilter,
   MemSessionInfo,
   SearchHit,
-  TaskPyEvent,
+  TaskEvent,
 } from "../types.js";
 
 // ---------- loose external shapes ----------
@@ -203,16 +203,16 @@ export function claudeSearch(s: MemSessionInfo, kw: string): SearchHit {
 /**
  * Single-pass scan of a Claude JSONL file that produces both the cleaned
  * dialogue turns (semantically identical to {@link claudeExtractDialogue}) and
- * the list of `task.py create|start` Bash tool_use events with their
+ * the list of `trellis task create|start` Bash tool_use events with their
  * `turnIndex`. Compaction resets both `turns` AND `events` — pre-compact event
  * indices stop pointing at real turns once history is collapsed.
  */
 export function collectClaudeTurnsAndEvents(s: MemSessionInfo): {
   turns: DialogueTurn[];
-  events: TaskPyEvent[];
+  events: TaskEvent[];
 } {
   let turns: DialogueTurn[] = [];
-  let events: TaskPyEvent[] = [];
+  let events: TaskEvent[] = [];
 
   readJsonl<ClaudeEvent>(s.filePath, (obj) => {
     const t = obj.type;
@@ -267,9 +267,9 @@ export function collectClaudeTurnsAndEvents(s: MemSessionInfo): {
           if (!inp || typeof inp !== "object") continue;
           const command = (inp as { command?: unknown }).command;
           if (typeof command !== "string") continue;
-          const parsedAll = parseTaskPyCommandsAll(command);
+          const parsedAll = parseTaskCommandsAll(command);
           for (const parsed of parsedAll) {
-            const ev: TaskPyEvent = {
+            const ev: TaskEvent = {
               action: parsed.action,
               timestamp: obj.timestamp ?? "",
               turnIndex: turns.length,

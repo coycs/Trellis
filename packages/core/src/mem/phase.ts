@@ -1,5 +1,5 @@
 /**
- * `task.py` command parsing and brainstorm-window slicing.
+ * `trellis task` command parsing and brainstorm-window slicing.
  *
  * Pure logic only — boundary signals are recovered from raw shell-call strings;
  * the per-platform raw-JSONL pass that produces those strings lives in the
@@ -8,41 +8,45 @@
 
 import type {
   BrainstormWindow,
-  ParsedTaskPyCommand,
-  TaskPyEvent,
+  ParsedTaskCommand,
+  TaskEvent,
 } from "./types.js";
 
 /**
- * Find ALL `task.py create|start` invocations in a single Bash command string.
+ * Find ALL `trellis task create|start` invocations in a single Bash command string.
  * A real Bash invocation can contain several (e.g.
- * `SMOKE=$(task.py create …); task.py start "$SMOKE"`). Returned in source
- * order; each entry's args are bounded to the next `task.py` invocation or
+ * `SMOKE=$(trellis task create …); trellis task start "$SMOKE"`). Returned in source
+ * order; each entry's args are bounded to the next `trellis task` invocation or
  * end-of-line.
  *
- * False-positive guard: `task.py` must appear at the start of the command,
+ * False-positive guard: `trellis task` must appear at the start of the command,
  * after whitespace, or after a path separator — never embedded inside a flag
- * value like `--slug=task.py-create-foo`.
+ * value like `--slug=trellis task-create-foo`.
  */
-export function parseTaskPyCommandsAll(cmd: string): ParsedTaskPyCommand[] {
+export function parseTaskCommandsAll(cmd: string): ParsedTaskCommand[] {
   if (typeof cmd !== "string" || cmd.length === 0) return [];
-  const all: ParsedTaskPyCommand[] = [];
-  const findRe = /(^|[\s/\\])task\.py\s+(create|start)(?:\s+|$)/g;
-  const matches: { action: "create" | "start"; bodyStart: number }[] = [];
+  const all: ParsedTaskCommand[] = [];
+  const findRe = /(^|[\s;|&()])trellis\s+task\s+(create|start)(?:\s+|$)/g;
+  const matches: {
+    action: "create" | "start";
+    commandStart: number;
+    bodyStart: number;
+  }[] = [];
   for (const m of cmd.matchAll(findRe)) {
     const action = m[2] as "create" | "start";
     const bodyStart = m.index + m[0].length;
-    matches.push({ action, bodyStart });
+    matches.push({ action, commandStart: m.index, bodyStart });
   }
   for (let i = 0; i < matches.length; i++) {
     const cur = matches[i];
     if (!cur) continue;
     const next = matches[i + 1];
-    const slice = cmd.slice(cur.bodyStart, next?.bodyStart ?? cmd.length);
+    const slice = cmd.slice(cur.bodyStart, next?.commandStart ?? cmd.length);
     const restRaw = (slice.split("\n")[0] ?? "").trim();
     // Reject prose-embedded matches: a bare alphanumeric word followed by
     // another all-letters word is English prose, not a real invocation.
     if (/^[A-Za-z][A-Za-z0-9_-]*\s+[A-Za-z]{2,}\b/.test(restRaw)) continue;
-    const parsed = parseRestOfTaskPyCommand(cur.action, restRaw);
+    const parsed = parseRestOfTaskCommand(cur.action, restRaw);
     if (
       cur.action === "create" &&
       parsed.action === "create" &&
@@ -58,15 +62,15 @@ export function parseTaskPyCommandsAll(cmd: string): ParsedTaskPyCommand[] {
 }
 
 /** Single-result wrapper — returns the first occurrence, or `null` if none. */
-export function parseTaskPyCommand(cmd: string): ParsedTaskPyCommand | null {
-  const all = parseTaskPyCommandsAll(cmd);
+export function parseTaskCommand(cmd: string): ParsedTaskCommand | null {
+  const all = parseTaskCommandsAll(cmd);
   return all[0] ?? null;
 }
 
-function parseRestOfTaskPyCommand(
+function parseRestOfTaskCommand(
   action: "create" | "start",
   restRaw: string,
-): ParsedTaskPyCommand {
+): ParsedTaskCommand {
   if (action === "create") {
     const args = splitShellArgs(restRaw);
     let slug: string | undefined;
@@ -101,7 +105,7 @@ function parseRestOfTaskPyCommand(
 /** Best-effort shell-arg splitter: respects `"…"` / `'…'` quoting, splits on
  * whitespace, treats `;`, `|`, `&`, `(`, `)` as token boundaries, and strips
  * trailing shell-meta cruft (`)};&|>`) from each token. Not a full POSIX
- * parser — sufficient for pulling slugs / paths out of `task.py` invocations. */
+ * parser — sufficient for pulling slugs / paths out of `trellis task` invocations. */
 export function splitShellArgs(s: string): string[] {
   const out: string[] = [];
   let cur = "";
@@ -164,7 +168,7 @@ export function slugFromTaskDir(p: string | undefined): string | undefined {
  * Windows are sorted by `startTurn` ascending for stable output ordering.
  */
 export function buildBrainstormWindows(
-  events: readonly TaskPyEvent[],
+  events: readonly TaskEvent[],
   totalTurns: number,
 ): BrainstormWindow[] {
   const creates = events

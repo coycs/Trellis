@@ -124,7 +124,7 @@ function seedPiPhaseSession(id: string, cwd: string): void {
           {
             type: "toolCall",
             name: "bash",
-            arguments: { command: "task.py create --slug pi-api" },
+            arguments: { command: "trellis task create --slug pi-api" },
           },
         ],
       },
@@ -143,7 +143,7 @@ function seedPiPhaseSession(id: string, cwd: string): void {
       timestamp: "2026-06-18T11:00:04.000Z",
       message: {
         role: "bashExecution",
-        command: "task.py start .trellis/tasks/06-18-pi-api",
+        command: "trellis task start .trellis/tasks/06-18-pi-api",
         output: "",
       },
     },

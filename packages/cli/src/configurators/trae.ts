@@ -9,7 +9,6 @@ import {
   wrapWithCommandFrontmatter,
   writeSkills,
   writeAgents,
-  writeSharedHooks,
   applyPullBasedPreludeMarkdown,
 } from "./shared.js";
 import { getAllAgents, getSettingsTemplate } from "../templates/trae/index.js";
@@ -26,7 +25,7 @@ import { getAllAgents, getSettingsTemplate } from "../templates/trae/index.js";
  *   ├── commands/      # Slash commands (trellis-*.md with frontmatter)
  *   ├── skills/        # Skill definitions
  *   ├── agents/        # Sub-agent definitions with pull-based prelude
- *   ├── hooks/         # Shared Python hook scripts
+ *   ├── hooks.json     # Direct Trellis CLI hook commands
  *   └── hooks.json     # Hook event registration
  */
 export async function configureTrae(cwd: string): Promise<void> {
@@ -58,10 +57,7 @@ export async function configureTrae(cwd: string): Promise<void> {
     applyPullBasedPreludeMarkdown(getAllAgents()),
   );
 
-  // 4. Shared hooks — Python scripts
-  await writeSharedHooks(path.join(configRoot, "hooks"), "trae");
-
-  // 5. Hook configuration — register hook events
+  // 4. Hook configuration — register hook events
   const settings = getSettingsTemplate();
   await writeFile(
     path.join(configRoot, settings.targetPath),

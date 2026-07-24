@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .qoder/hooks/session-start.py",
+            "command": "trellis hook session --platform qoder",
             "timeout": 30
           }
         ]
@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .qoder/hooks/session-start.py",
+            "command": "trellis hook session --platform qoder",
             "timeout": 30
           }
         ]
@@ -26,7 +26,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .qoder/hooks/session-start.py",
+            "command": "trellis hook session --platform qoder",
             "timeout": 30
           }
         ]
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "{{PYTHON_CMD}} .qoder/hooks/inject-workflow-state.py",
+            "command": "trellis hook workflow --platform qoder",
             "timeout": 15
           }
         ]

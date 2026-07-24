@@ -13,7 +13,7 @@ import { stripInjectionTags, isBootstrapTurn } from "../dialogue.js";
 import { inRangeOverlap, sameProject } from "../filter.js";
 import { readJsonl, readJsonlFirst } from "../internal/jsonl.js";
 import { CODEX_SESSIONS, walkDir } from "../internal/paths.js";
-import { parseTaskPyCommandsAll } from "../phase.js";
+import { parseTaskCommandsAll } from "../phase.js";
 import { searchInDialogue } from "../search.js";
 import type {
   DialogueRole,
@@ -21,7 +21,7 @@ import type {
   MemFilter,
   MemSessionInfo,
   SearchHit,
-  TaskPyEvent,
+  TaskEvent,
 } from "../types.js";
 
 // ---------- loose external shapes ----------
@@ -69,7 +69,9 @@ function parseDialogueRole(v: unknown): DialogueRole | undefined {
  *
  * Returns `undefined` when no command can be recovered.
  */
-export function commandFromCodexArguments(argsRaw: unknown): string | undefined {
+export function commandFromCodexArguments(
+  argsRaw: unknown,
+): string | undefined {
   const fromObject = (obj: Record<string, unknown>): string | undefined => {
     const cmd = obj.cmd;
     if (typeof cmd === "string") return cmd;
@@ -203,16 +205,16 @@ export function codexSearch(s: MemSessionInfo, kw: string): SearchHit {
 /**
  * Codex twin of `collectClaudeTurnsAndEvents`. Single pass over the rollout
  * file; emits both the cleaned dialogue turns and the list of
- * `task.py create|start` invocations found inside `function_call` events whose
+ * `trellis task create|start` invocations found inside `function_call` events whose
  * `name === "exec_command"` (or `"shell"`). Compaction resets both `turns` and
  * `events`.
  */
 export function collectCodexTurnsAndEvents(s: MemSessionInfo): {
   turns: DialogueTurn[];
-  events: TaskPyEvent[];
+  events: TaskEvent[];
 } {
   let turns: DialogueTurn[] = [];
-  let events: TaskPyEvent[] = [];
+  let events: TaskEvent[] = [];
 
   readJsonl<CodexEvent>(s.filePath, (obj) => {
     if (obj.type === "compacted") {
@@ -239,9 +241,9 @@ export function collectCodexTurnsAndEvents(s: MemSessionInfo): {
       if (fnName !== "exec_command" && fnName !== "shell") return;
       const cmd = commandFromCodexArguments(p.arguments);
       if (!cmd) return;
-      const parsedAll = parseTaskPyCommandsAll(cmd);
+      const parsedAll = parseTaskCommandsAll(cmd);
       for (const parsed of parsedAll) {
-        const ev: TaskPyEvent = {
+        const ev: TaskEvent = {
           action: parsed.action,
           timestamp: obj.timestamp ?? "",
           turnIndex: turns.length,

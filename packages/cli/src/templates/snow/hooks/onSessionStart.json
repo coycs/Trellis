@@ -5,7 +5,7 @@
       "hooks": [
         {
           "type": "command",
-          "command": "python -X utf8 .snow/hooks/write-trellis-context.py session",
+          "command": "trellis hook session --platform snow",
           "timeout": 20000,
           "enabled": true
         }

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getAllAgents, getHooksConfig } from "../../src/templates/zcode/index.js";
+import {
+  getAllAgents,
+  getHooksConfig,
+} from "../../src/templates/zcode/index.js";
 
 const EXPECTED_AGENT_NAMES = [
   "trellis-check",
@@ -43,20 +46,15 @@ describe("zcode getHooksConfig", () => {
     expect(cfg.content).toContain('"UserPromptSubmit"');
     expect(cfg.content).toContain('"PreToolUse"');
     expect(cfg.content).toContain('"matcher": "Agent|Task"');
-    expect(cfg.content).toContain("session-start.py");
-    expect(cfg.content).toContain("inject-workflow-state.py");
-    expect(cfg.content).toContain("inject-subagent-context.py");
-    // Uses {{PYTHON_CMD}} placeholder so init resolves host python.
-    expect(cfg.content).toContain("{{PYTHON_CMD}}");
+    expect(cfg.content).toContain("trellis hook session --platform zcode");
+    expect(cfg.content).toContain("trellis hook workflow --platform zcode");
+    expect(cfg.content).toContain("trellis hook subagent --platform zcode");
   });
 
-  it("anchors hook commands to the ZCode project root", () => {
+  it("delegates every hook to the central CLI", () => {
     const cfg = JSON.parse(getHooksConfig().content) as {
       hooks: {
-        events: Record<
-          string,
-          { hooks: { command: string }[] }[]
-        >;
+        events: Record<string, { hooks: { command: string }[] }[]>;
       };
     };
 
@@ -66,13 +64,13 @@ describe("zcode getHooksConfig", () => {
 
     expect(commands).toEqual(
       expect.arrayContaining([
-        '{{PYTHON_CMD}} "${ZCODE_PROJECT_DIR}/.zcode/hooks/session-start.py"',
-        '{{PYTHON_CMD}} "${ZCODE_PROJECT_DIR}/.zcode/hooks/inject-workflow-state.py"',
-        '{{PYTHON_CMD}} "${ZCODE_PROJECT_DIR}/.zcode/hooks/inject-subagent-context.py"',
+        "trellis hook session --platform zcode",
+        "trellis hook workflow --platform zcode",
+        "trellis hook subagent --platform zcode",
       ]),
     );
     for (const command of commands) {
-      expect(command).not.toMatch(/{{PYTHON_CMD}}\s+\.zcode\/hooks\//);
+      expect(command).not.toContain(".zcode/hooks");
     }
   });
 });

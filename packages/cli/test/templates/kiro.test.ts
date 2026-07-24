@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  getAllAgents,
-  getIdeHooks,
-} from "../../src/templates/kiro/index.js";
+import { getAllAgents, getIdeHooks } from "../../src/templates/kiro/index.js";
 
 interface KiroAgentJson {
   name: string;
@@ -13,7 +10,6 @@ interface KiroAgentJson {
 function parseAgent(name: string): KiroAgentJson {
   const agent = getAllAgents().find((a) => a.name === name);
   if (!agent) throw new Error(`kiro agent ${name} is missing`);
-  // Source templates carry the {{PYTHON_CMD}} placeholder; JSON is still valid.
   return JSON.parse(agent.content) as KiroAgentJson;
 }
 
@@ -32,35 +28,38 @@ describe("kiro templates", () => {
 
   it("all agent templates are valid JSON", () => {
     for (const agent of getAllAgents()) {
-      expect(() => JSON.parse(agent.content), `${agent.name} invalid`).not.toThrow();
+      expect(
+        () => JSON.parse(agent.content),
+        `${agent.name} invalid`,
+      ).not.toThrow();
     }
   });
 
   it("main `trellis` agent wires per-turn + session-start hooks and resources", () => {
     const trellis = parseAgent("trellis");
 
-    expect(trellis.hooks?.userPromptSubmit?.[0].command).toContain(
-      ".kiro/hooks/inject-workflow-state.py",
+    expect(trellis.hooks?.userPromptSubmit?.[0].command).toBe(
+      "trellis hook workflow --platform kiro",
     );
-    expect(trellis.hooks?.agentSpawn?.[0].command).toContain(
-      ".kiro/hooks/session-start.py",
+    expect(trellis.hooks?.agentSpawn?.[0].command).toBe(
+      "trellis hook session --platform kiro",
     );
     expect(trellis.resources).toContain("file://.trellis/workflow.md");
     // The main agent must NOT inject sub-agent context (that's the sub-agents' job).
     expect(JSON.stringify(trellis.hooks)).not.toContain(
-      "inject-subagent-context.py",
+      "trellis hook subagent",
     );
   });
 
-  it("the 3 sub-agents keep agentSpawn → inject-subagent-context.py", () => {
+  it("the 3 sub-agents delegate agentSpawn to the central CLI", () => {
     for (const name of [
       "trellis-implement",
       "trellis-check",
       "trellis-research",
     ]) {
       const agent = parseAgent(name);
-      expect(agent.hooks?.agentSpawn?.[0].command).toContain(
-        ".kiro/hooks/inject-subagent-context.py",
+      expect(agent.hooks?.agentSpawn?.[0].command).toBe(
+        "trellis hook subagent --platform kiro",
       );
       // Sub-agents must not carry the main-session per-turn hook.
       expect(agent.hooks?.userPromptSubmit).toBeUndefined();
@@ -89,8 +88,6 @@ describe("kiro templates", () => {
     expect(parsed.name).toBe("trellis-workflow-state");
     expect(parsed.when.type).toBe("promptSubmit");
     expect(parsed.then.type).toBe("runCommand");
-    expect(parsed.then.command).toContain(
-      ".kiro/hooks/inject-workflow-state.py",
-    );
+    expect(parsed.then.command).toBe("trellis hook workflow --platform kiro");
   });
 });

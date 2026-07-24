@@ -8,91 +8,9 @@
 import type { TemplateContext } from "../types/ai-tools.js";
 
 /**
- * Per-platform configure options threaded from `trellis init` flags.
- * Defined here (not in index.ts) so configurators can reference it without
- * a circular import.
- */
-export interface PlatformConfigureOptions {
-  /**
-   * Claude Code only: install the opt-in Trellis statusLine
-   * (`trellis init --with-statusline`). Off by default — see
-   * `configureClaude` in `claude.ts`.
-   */
-  withStatusline?: boolean;
-}
-
-/**
- * Module-level resolved Python command, set by the init flow after probing.
- *
- * Windows commonly has Python under one of: `python`, `python3`, `py -3` —
- * which one works varies by installer (python.org / Microsoft Store / py
- * launcher). `init.ts` detects which is available, then calls
- * `setResolvedPythonCommand` so all subsequent template / configurator writes
- * use the resolved value instead of the platform default.
- *
- * If unset (e.g. unit tests bypass init), `getPythonCommandForPlatform` falls
- * back to the static platform default (`python` on Windows, `python3`
- * elsewhere) — preserving legacy behavior.
- */
-let resolvedPythonCommand: string | null = null;
-
-export function setResolvedPythonCommand(cmd: string): void {
-  const trimmed = cmd.trim();
-  resolvedPythonCommand = trimmed || null;
-}
-
-/** Test helper — clear the resolved cache between unit tests. */
-export function resetResolvedPythonCommand(): void {
-  resolvedPythonCommand = null;
-}
-
-/**
- * Get the Python command for the host platform.
- *
- * Returns the resolved command if `setResolvedPythonCommand` has been called;
- * otherwise the static platform default — Windows: `python`, others:
- * `python3`. Pass an explicit `platform` arg only for unit tests (it bypasses
- * the resolved cache).
- */
-export function getPythonCommandForPlatform(
-  platform?: NodeJS.Platform,
-): string {
-  if (platform === undefined && resolvedPythonCommand) {
-    return resolvedPythonCommand;
-  }
-  const target = platform ?? process.platform;
-  return target === "win32" ? "python" : "python3";
-}
-
-/**
- * Replace literal `python3` with the resolved Python command, excluding
- * shebang lines.
- *
- * Applied at init/update write time so that all file types (including .py,
- * .md, .toml, .json) get the correct command for the host platform without
- * template-level changes.
- *
- * No-op when the resolved command is `python3` (the template default).
- * Idempotent: running it twice produces the same result.
- */
-export function replacePythonCommandLiterals(content: string): string {
-  const target = getPythonCommandForPlatform();
-  if (target === "python3") return content;
-  return content
-    .split("\n")
-    .map((line) =>
-      line.startsWith("#!") ? line : line.replaceAll("python3", target),
-    )
-    .join("\n");
-}
-
-/**
  * Resolve platform-specific placeholders in template content.
  *
- * When called without a context, only resolves {{PYTHON_CMD}} (legacy behavior
- * for settings.json, hooks.json, etc.).
- *
- * When called with a TemplateContext, additionally resolves:
+ * When called with a TemplateContext, resolves:
  * - {{CMD_REF:name}}         → platform-specific command reference
  * - {{EXECUTOR_AI}}          → AI executor description
  * - {{USER_ACTION_LABEL}}    → user action label
@@ -103,7 +21,6 @@ export function replacePythonCommandLiterals(content: string): string {
  * Supported conditional flags: AGENT_CAPABLE, HAS_HOOKS
  */
 // Pre-compiled regexes for placeholder resolution
-const RE_PYTHON_CMD = /\{\{PYTHON_CMD\}\}/g;
 const RE_CMD_REF = /\{\{CMD_REF:([\w][\w-]*)\}\}/g;
 const RE_EXECUTOR_AI = /\{\{EXECUTOR_AI\}\}/g;
 const RE_USER_ACTION_LABEL = /\{\{USER_ACTION_LABEL\}\}/g;
@@ -131,9 +48,7 @@ export function resolvePlaceholders(
   content: string,
   context?: TemplateContext,
 ): string {
-  let result = replacePythonCommandLiterals(
-    content.replace(RE_PYTHON_CMD, getPythonCommandForPlatform()),
-  );
+  let result = content;
 
   if (!context) return result;
 
@@ -183,21 +98,19 @@ export function resolvePlaceholders(
  * "last-writer-wins" collision when both Codex and Gemini target
  * `.agents/skills/`.
  *
- * `{{CLI_FLAG}}`, `{{EXECUTOR_AI}}`, `{{USER_ACTION_LABEL}}`, conditionals,
- * and `{{PYTHON_CMD}}` are still resolved from the platform context. The
+ * `{{CLI_FLAG}}`, `{{EXECUTOR_AI}}`, `{{USER_ACTION_LABEL}}`, and conditionals
+ * are still resolved from the platform context. The
  * shared skills do not use those placeholders, so they remain platform-
  * neutral. Codex-only skill files (e.g. `trellis-continue/SKILL.md`,
  * `trellis-finish-work/SKILL.md` written via `resolveAllAsSkillsNeutral`) DO
- * use `{{CLI_FLAG}}` / `{{PYTHON_CMD}}` and resolve to Codex-correct values
+ * use `{{CLI_FLAG}}` and resolve to Codex-correct values
  * — no other platform writes those files, so byte-identity is not required.
  */
 export function resolvePlaceholdersNeutral(
   content: string,
   context?: TemplateContext,
 ): string {
-  let result = replacePythonCommandLiterals(
-    content.replace(RE_PYTHON_CMD, getPythonCommandForPlatform()),
-  );
+  let result = content;
 
   if (!context) return result;
 
@@ -240,7 +153,7 @@ const SKILL_DESCRIPTIONS: Record<string, string> = {
   start:
     "Initializes an AI development session by reading workflow guides, developer identity, git status, active tasks, and project guidelines from .trellis/. Classifies incoming tasks and routes to brainstorm, direct edit, or task workflow. Use when beginning a new coding session, resuming work, starting a new task, or re-establishing project context.",
   continue:
-    "Resume work on the current task. Loads the workflow Phase Index, figures out which phase/step to pick up at, then pulls the step-level detail via get_context.py --mode phase. Use when coming back to an in-progress task and you need to know what to do next.",
+    "Resume work on the current task. Loads the workflow Phase Index, figures out which phase/step to pick up at, then pulls the step-level detail via trellis context --mode phase. Use when coming back to an in-progress task and you need to know what to do next.",
   "finish-work":
     "Wrap up the current session: verify quality gate passed, remind user to commit, archive completed tasks, and record session progress to the developer journal. Use when done coding and ready to end the session.",
   "before-dev":
@@ -463,7 +376,7 @@ export function resolveSkillsNeutral(ctx: TemplateContext): ResolvedTemplate[] {
  * Same as {@link resolveAllAsSkills} but uses
  * {@link resolvePlaceholdersNeutral} for the shared common skills. The 2 command
  * templates (continue, finish-work) folded into the skill set still resolve
- * `{{CLI_FLAG}}` / `{{PYTHON_CMD}}` per platform — only Codex writes those
+ * `{{CLI_FLAG}}` per platform — only Codex writes those
  * files into `.agents/skills/`, so byte-identity isn't required there.
  */
 export function resolveAllAsSkillsNeutral(
@@ -530,18 +443,12 @@ export async function writeSkills(
   for (const skill of skills) {
     const skillDir = path.join(skillsRoot, skill.name);
     ensureDir(skillDir);
-    await writeFile(
-      path.join(skillDir, "SKILL.md"),
-      replacePythonCommandLiterals(skill.content),
-    );
+    await writeFile(path.join(skillDir, "SKILL.md"), skill.content);
   }
   for (const skillFile of bundledSkills) {
     const targetPath = path.join(skillsRoot, skillFile.relativePath);
     ensureDir(path.dirname(targetPath));
-    await writeFile(
-      targetPath,
-      replacePythonCommandLiterals(skillFile.content),
-    );
+    await writeFile(targetPath, skillFile.content);
   }
 }
 
@@ -553,26 +460,7 @@ export async function writeAgents(
 ): Promise<void> {
   ensureDir(agentsDir);
   for (const agent of agents) {
-    await writeFile(
-      path.join(agentsDir, `${agent.name}${ext}`),
-      replacePythonCommandLiterals(agent.content),
-    );
-  }
-}
-
-/** Write the shared hook scripts that `platform` actually registers. */
-export async function writeSharedHooks(
-  hooksDir: string,
-  platform: import("../templates/shared-hooks/index.js").SharedHookPlatform,
-): Promise<void> {
-  const { getSharedHookScriptsForPlatform } =
-    await import("../templates/shared-hooks/index.js");
-  ensureDir(hooksDir);
-  for (const hook of getSharedHookScriptsForPlatform(platform)) {
-    await writeFile(
-      path.join(hooksDir, hook.name),
-      replacePythonCommandLiterals(hook.content),
-    );
+    await writeFile(path.join(agentsDir, `${agent.name}${ext}`), agent.content);
   }
 }
 
@@ -594,7 +482,7 @@ export function buildPullBasedPrelude(agentType: SubAgentType): string {
   // context buckets keyed by role (not by platform-visible agent name).
   const jsonl = agentType === "check" ? "check.jsonl" : "implement.jsonl";
 
-  return replacePythonCommandLiterals(`## Required: Load Trellis Context First
+  return `## Required: Load Trellis Context First
 
 This platform does NOT auto-inject task context via hook. Before doing anything else, you MUST load context yourself.
 
@@ -603,23 +491,23 @@ This platform does NOT auto-inject task context via hook. Before doing anything 
 Try in order — stop at the first one that yields a task path:
 
 1. **Look at the dispatch prompt** you received from the main agent. If its first line is \`Active task: <path>\` (e.g. \`Active task: .trellis/tasks/04-17-foo\`), use that path. The main agent is required to include this line on class-2 platforms.
-2. **Run** \`python3 ./.trellis/scripts/task.py current --source\` and read the \`Current task:\` line.
-3. **If both fail** (no \`Active task:\` line in the prompt and \`task.py current\` returns no task), ask the user which task to work on; do NOT guess.
+2. **Run** \`trellis task current\` and read the active task path.
+3. **If both fail** (no \`Active task:\` line in the prompt and no current task), ask the user which task to work on; do NOT guess.
 
 ### Step 2: Load task context from the resolved path
 
 1. Read \`<task-path>/${jsonl}\` — JSONL list of spec/research files relevant to this agent.
 2. For each entry in the JSONL, Read its \`file\` path — these are the specs and research notes you must follow.
-   **Skip rows without a \`"file"\` field** (e.g. \`{"_example": "..."}\` seed rows left over from \`task.py create\` before the curator ran).
+   **Skip rows without a \`"file"\` field**.
 3. Read the task's \`prd.md\` (requirements), then \`design.md\` if present (technical design), then \`implement.md\` if present (execution plan).
 
-If \`${jsonl}\` has no curated entries (only a seed row, or the file is missing), fall back to: read the task artifacts, list available specs with \`python3 ./.trellis/scripts/get_context.py --mode packages\`, and pick the specs that match the task domain yourself. Do NOT block on the missing jsonl — lightweight tasks may be PRD-only, while complex tasks may also include \`design.md\` and \`implement.md\`.
+If \`${jsonl}\` has no curated entries, fall back to: read the task artifacts, list available specs with \`trellis context --mode packages\`, and pick the matching specs yourself.
 
 If the resolved task path has no \`prd.md\`, ask the user what to work on; do NOT proceed without context.
 
 ---
 
-`);
+`;
 }
 
 /** Insert prelude into a markdown agent definition (after YAML frontmatter). */
