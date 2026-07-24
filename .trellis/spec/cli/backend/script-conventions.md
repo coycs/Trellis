@@ -347,7 +347,6 @@ for session/window scoped task state:
 | `resolve_context_key(platform_input, platform)` | Accepts `session_id` / `sessionId` / `sessionID`, Cursor `conversation_id`, and transcript path fallbacks |
 | `resolve_active_task(repo_root, platform_input, platform)` | Returns an `ActiveTask` with `task_path`, `source_type`, `context_key`, and `stale` |
 | `set_active_task(...)` | Writes session runtime state when a context key exists; returns `None` without a context key |
-| `clear_active_task(...)` | Deletes the current session file; returns no active task without a context key |
 
 `TRELLIS_CONTEXT_ID` is a context-key override for subprocesses. It is not a
 second task pointer and must never store a task path. A plain AI-run shell
@@ -389,7 +388,7 @@ a `.current-task` fallback or a Python hook directory.
 
 ##### 1. Scope / Trigger
 
-- Trigger: any change to `task.py create/start/current/finish`, hook
+- Trigger: any change to `task.py create/start/current/archive`, hook
   current-task injection, statusline current-task display, plugin active-task
   display, or platform session identity handling.
 - Reason: current-task state is a cross-platform runtime contract. A direct
@@ -402,10 +401,8 @@ a `.current-task` fallback or a Python hook directory.
 - `python3 .trellis/scripts/task.py start <task-dir>`
 - `python3 .trellis/scripts/task.py current [--source] [--json]`
 - `python3 .trellis/scripts/task.py list [--mine] [--status <status>] [--json]`
-- `python3 .trellis/scripts/task.py finish`
 - `resolve_active_task(repo_root, platform_input=None, platform=None) -> ActiveTask`
 - `set_active_task(task_path, repo_root, platform_input=None, platform=None) -> ActiveTask | None`
-- `clear_active_task(repo_root, platform_input=None, platform=None) -> ActiveTask`
 
 ##### 3. Contracts
 
@@ -428,13 +425,10 @@ a `.current-task` fallback or a Python hook directory.
   this is gated by `get_codex_dispatch_mode()`: the default is
   `codex.dispatch_mode: auto` (native `SubagentStart` context injection with
   a child-side pull fallback), which seeds JSONL like every other sub-agent
-  platform. `sub-agent` is a backwards-compatible alias for `auto`. Setting
-  `codex.dispatch_mode: inline` opts out and loads context through skills
+  platform. Setting `codex.dispatch_mode: inline` opts out and loads context through skills
   instead, so JSONL is not seeded.
-- `task.py start` writes session-local state only when a context key is
-  available. Otherwise it enters degraded mode: no session pointer is persisted,
-  `.trellis/.current-task` is not written, and `task.json.status` may still move
-  from `planning` to `in_progress`.
+- `task.py start` requires a context key and writes session-local state. Without
+  one it fails before changing either the pointer or task status.
 - Session state is stored at
   `.trellis/.runtime/sessions/<session-key>.json`. The runtime directory is
   created lazily by the JSON write path.
@@ -448,9 +442,6 @@ a `.current-task` fallback or a Python hook directory.
   - transcript fallback -> `<platform>_transcript_<sha256-prefix>.json`
 - `TRELLIS_CONTEXT_ID` is already a complete context key. Do not prepend a
   platform name to it.
-- `task.py finish` deletes only the current session file. Without a
-  context key it returns "no current task" and must not delete
-  `.trellis/.current-task`.
 - `task.py archive <task>` deletes every runtime session file whose
   `current_task` points at the archived task before moving the task directory.
 - Before moving anything, `cmd_archive` (`task_store.py`) calls
@@ -834,7 +825,7 @@ path = ".trellis/scripts/task.py"
 
 ### Scope / Trigger
 
-Task lifecycle events (`after_create`, `after_start`, `after_finish`, `after_archive`) execute user-defined shell commands configured in `config.yaml`.
+Task lifecycle events (`after_create`, `after_start`, `after_archive`) execute user-defined shell commands configured in `config.yaml`.
 
 ### Signatures
 
@@ -1692,7 +1683,7 @@ Examples:
     # list command
     list_parser = subparsers.add_parser("list", help="List tasks")
     list_parser.add_argument("--mine", "-m", action="store_true")
-    list_parser.add_argument("--status", "-s", choices=["planning", "in_progress", "review", "completed"])
+    list_parser.add_argument("--status", "-s", choices=["planning", "in_progress", "review"])
 
     args = parser.parse_args()
 

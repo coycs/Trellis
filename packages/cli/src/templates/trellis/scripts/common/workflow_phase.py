@@ -91,7 +91,7 @@ def get_phase_index() -> str:
     # they're injected separately by inject-workflow-state.py per-turn.
     import re as _re
     tag_re = _re.compile(
-        r"\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n.*?\n\s*\[/workflow-state:\1\]\n?",
+        r"\[workflow-state:(no_task|planning|in_progress(?:-inline)?|review)\]\s*\n.*?\n\s*\[/workflow-state:\1\]\n?",
         _re.DOTALL,
     )
     return tag_re.sub("", section).rstrip() + "\n"
@@ -146,7 +146,7 @@ def resolve_effective_platform(platform: str, config: dict) -> str:
 
     When ``--platform codex`` is passed, return ``"codex-sub-agent"`` by
     default or ``"codex-inline"`` when explicitly configured in
-    ``.trellis/config.yaml``. ``sub-agent`` remains an alias for ``auto``.
+    ``.trellis/config.yaml``.
     ``filter_platform`` then surfaces blocks whose marker lists include the
     namespaced name (e.g. ``[codex-sub-agent, ...]`` or ``[codex-inline, Kilo,
     Antigravity, Devin]``).
@@ -167,7 +167,7 @@ def resolve_effective_platform(platform: str, config: dict) -> str:
                 cfg_mode = str(codex_cfg.get("dispatch_mode", mode)).strip().lower()
                 if cfg_mode == "inline":
                     mode = "inline"
-                elif cfg_mode in ("auto", "sub-agent"):
+                elif cfg_mode == "auto":
                     mode = "auto"
                 else:
                     mode = "inline"

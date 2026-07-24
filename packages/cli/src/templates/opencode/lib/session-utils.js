@@ -54,7 +54,7 @@ function getTaskStatus(ctx, platformInput = null) {
   const taskDir = ctx.resolveTaskDir(taskRef)
 
   if (active.stale || !taskDir || !existsSync(taskDir)) {
-    return `Status: STALE POINTER\nTask: ${taskRef}\nNext-Action: Task directory not found. Run: python3 ./.trellis/scripts/task.py finish`
+    return `Status: STALE POINTER\nTask: ${taskRef}\nNext-Action: Start the intended task to replace this stale session pointer`
   }
 
   let taskData = {}
@@ -69,10 +69,6 @@ function getTaskStatus(ctx, platformInput = null) {
 
   const taskTitle = taskData.title || taskRef
   const taskStatus = taskData.status || "unknown"
-
-  if (taskStatus === "completed") {
-    return `Status: COMPLETED\nTask: ${taskTitle}\nNext-Action: Run /trellis:finish-work. If the working tree is dirty, return to Phase 3.4 first.`
-  }
 
   const hasPrd = existsSync(join(taskDir, "prd.md"))
   const hasDesign = existsSync(join(taskDir, "design.md"))
@@ -413,7 +409,7 @@ Trellis compact SessionStart context. Use it to orient the session; load details
       const strippedStateBlocks = allLines
         .slice(rangeStart, rangeEnd)
         .join("\n")
-        .replace(/\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n[\s\S]*?\n\s*\[\/workflow-state:\1\]\n?/g, "")
+        .replace(/\[workflow-state:(no_task|planning|in_progress(?:-inline)?|review)\]\s*\n[\s\S]*?\n\s*\[\/workflow-state:\1\]\n?/g, "")
         .replace(/<!--[\s\S]*?-->/g, "")
         .replace(/^\[(?!\/?workflow-state:)\/?[^\]\n]+\]\s*\n?/gm, "")
         .replace(/\n{3,}/g, "\n\n")

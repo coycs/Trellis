@@ -48,7 +48,6 @@ python3 ./.trellis/scripts/task.py approve <name>        # bind approval to curr
 python3 ./.trellis/scripts/task.py start <name>          # enter in_progress
 python3 ./.trellis/scripts/task.py review <name> -- <test-command> # run tests and enter review
 python3 ./.trellis/scripts/task.py current --source      # show active task and source
-python3 ./.trellis/scripts/task.py finish                # clear active task (triggers after_finish hooks)
 python3 ./.trellis/scripts/task.py archive <name>        # move to archive/{year-month}/
 python3 ./.trellis/scripts/task.py list [--mine] [--status <s>]
 python3 ./.trellis/scripts/task.py list-archive
@@ -75,7 +74,7 @@ python3 ./.trellis/scripts/task.py create-pr [name] [--dry-run]
 
 > Run `python3 ./.trellis/scripts/task.py --help` to see the authoritative, up-to-date list.
 
-**Current-task mechanism**: lifecycle changes are strict and linear: `planning → in_progress → review → completed`. `approve` binds the current planning artifacts, `start` requires that approval and a session identity, `review` executes a real test command against a clean commit, and `archive` requires fresh passing evidence. `finish` only clears the session pointer.
+**Current-task mechanism**: lifecycle changes are strict and linear: `planning → in_progress → review → completed`. `approve` binds the current planning artifacts, `start` requires that approval and a session identity, `review` executes a real test command against a clean commit, and `archive` requires fresh passing evidence and clears the session pointer.
 
 ### Workspace System
 
@@ -108,7 +107,8 @@ python3 ./.trellis/scripts/get_context.py --mode phase --step <X.Y>  # detailed 
   inject-workflow-state.js (OpenCode plugin) only parse them — there is no
   fallback dict baked into the scripts after v0.5.0-rc.0.
 
-  STATUS charset: [A-Za-z0-9_-]+. When the hook can't find a tag, it
+  Valid tags are no_task, planning, in_progress, in_progress-inline, and
+  review. When the hook can't find a tag, it
   degrades to a generic "Refer to workflow.md for current step." line —
   intentionally visible so users notice and fix a broken workflow.md.
 
@@ -600,19 +600,15 @@ Directly edit the body of the corresponding `[workflow-state:STATUS]` block. Aft
 
 ### Adding a lifecycle hook
 
-Add a `hooks` field to your `task.json`:
+Add hooks to `.trellis/config.yaml`:
 
-```json
-{
-  "hooks": {
-    "after_finish": [
-      "your-script-or-command-here"
-    ]
-  }
-}
+```yaml
+hooks:
+  after_archive:
+    - "your-script-or-command-here"
 ```
 
-Supported events: `after_create / after_start / after_finish / after_archive`. Note that `after_finish` ≠ a status change (it only clears the active-task pointer); use `after_archive` for "task is done" notifications.
+Supported events: `after_create / after_start / after_archive`.
 
 ### Full contract
 

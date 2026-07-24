@@ -44,8 +44,6 @@ max_journal_lines: 2000
 #     - "echo 'Task created'"
 #   after_start:
 #     - "echo 'Task started'"
-#   after_finish:
-#     - "echo 'Task finished'"
 #   after_archive:
 #     - "echo 'Task archived'"
 
@@ -123,7 +121,7 @@ channel:
 # caller-controlled, while Codex's native SubagentStart hook injects task
 # context when trusted and child-side loading remains the fallback when it is
 # unavailable. Set to "inline" only to keep implementation and checks in the
-# main session. "sub-agent" remains a backwards-compatible alias for "auto".
+# main session.
 # Invalid explicit values safely use inline mode.
 #
 # In "auto" mode, dispatched sub-agents inherit the main session's model
@@ -134,4 +132,4 @@ channel:
 # `trellis update` preserves your edits across regeneration.
 #
 # codex:
-#   dispatch_mode: auto  # or "inline"; legacy alias: "sub-agent"
+#   dispatch_mode: auto  # or "inline"

@@ -238,8 +238,7 @@ describe("trellis template constants", () => {
     const taskStore = scripts.get("common/task_store.py") ?? "";
 
     expect(config).toContain('DEFAULT_CODEX_DISPATCH_MODE = "auto"');
-    expect(config).toContain('if mode == "sub-agent":');
-    expect(config).toContain('return "auto"');
+    expect(config).not.toContain('mode == "sub-agent"');
     expect(config).toContain("using inline");
     expect(workflowPhase).toContain('mode = "auto"');
     expect(workflowPhase).toContain('return "codex-sub-agent" if mode == "auto" else "codex-inline"');
@@ -388,11 +387,12 @@ describe("getAllAgents", () => {
   it("each agent body starts with `---` frontmatter and a matching name field", () => {
     const agents = getAllAgents();
     for (const [file, content] of agents) {
-      expect(content.startsWith("---\n"), `${file} must start with --- frontmatter`).toBe(true);
+      const normalized = content.replace(/\r\n/g, "\n");
+      expect(normalized.startsWith("---\n"), `${file} must start with --- frontmatter`).toBe(true);
       // Frontmatter must close on a `---\n` line.
-      const frontmatterClose = content.indexOf("\n---\n", 4);
+      const frontmatterClose = normalized.indexOf("\n---\n", 4);
       expect(frontmatterClose, `${file} must have a closing --- frontmatter line`).toBeGreaterThan(0);
-      const frontmatter = content.slice(4, frontmatterClose);
+      const frontmatter = normalized.slice(4, frontmatterClose);
       // The agent's `name:` field must match the file basename so
       // `trellis channel spawn --agent <name>` resolves correctly.
       const expectedName = file.replace(/\.md$/, "");

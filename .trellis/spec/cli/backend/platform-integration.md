@@ -547,7 +547,7 @@ The native hook path calls this resolver with `platform="codex"`,
 - Black-box the shared hook for valid, unknown, malformed, concurrent, and
   non-Trellis subagents; assert the output envelope, marker, ordering, and
   environment-override isolation.
-- Cover `auto` default, explicit `inline`, legacy `sub-agent`, and invalid
+- Cover `auto` default, explicit `inline`, and invalid
   configuration across JSONL seeding, effective workflow platform, and the
   Codex workflow-state banner.
 - Assert `configureCodex()` and `collectPlatformTemplates("codex")` remain
@@ -1061,7 +1061,7 @@ Concrete rules:
 
 - **Regex parity**: `templates/pi/extensions/trellis/index.ts.txt:WORKFLOW_STATE_TAG_RE` MUST mirror `templates/shared-hooks/inject-workflow-state.py:_TAG_RE` byte-for-byte. Both use the closing-tag backreference `\1` (or its TS equivalent in `[\/workflow-state:\1\]`) so a tag block parses identically in Python and TypeScript.
 - **Breadcrumb body source**: `loadWorkflowBreadcrumbs()` in the Pi extension reads `.trellis/workflow.md` directly — same source as the Python hook. There is no separate TS-side template for breadcrumb bodies. If the regex drifts, the TS port silently falls back to hardcoded defaults and Pi loses parity.
-- **Status writer parity**: `task.json.status` is the sole input to "which `[workflow-state:STATUS]` block fires". Both the Python hook (`get_active_task` + status read) and the TS port (`readActiveTaskStatus()` in `index.ts.txt`) MUST agree on the status string. Custom statuses pass through both unchanged.
+- **Status writer parity**: `task.json.status` is the sole input to "which `[workflow-state:STATUS]` block fires". Both the Python hook (`get_active_task` + status read) and the TS port (`readActiveTaskStatus()` in `index.ts.txt`) MUST agree on the strict status string.
 - **`<session-overview>` parity**: Pi shells out to `python3 .trellis/scripts/get_context.py` rather than re-implementing context generation in TS, so output stays canonical. Don't replace this with an inline TS implementation — that's a parity drift waiting to happen.
 
 #### Anti-pattern: bypassing the shared TS port
@@ -1091,7 +1091,7 @@ function onInput(event, ctx) {
 ```typescript
 // Match Python regex byte-for-byte (TS uses [\s\S]*? for cross-line; Python uses re.DOTALL)
 const WORKFLOW_STATE_TAG_RE =
-  /\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n([\s\S]*?)\n\s*\[\/workflow-state:\1\]/g;
+  /\[workflow-state:(no_task|planning|in_progress(?:-inline)?|review)\]\s*\n([\s\S]*?)\n\s*\[\/workflow-state:\1\]/g;
 
 // Compact runtime context is persisted through before_agent_start as a hidden custom message.
 const onBeforeAgentStart = (event, ctx) => {
@@ -1697,7 +1697,9 @@ For agent-capable platforms, do NOT edit code in the main session; dispatch `tre
 [/workflow-state:in_progress]
 ```
 
-STATUS matches `task.json.status`. Built-in: `planning` / `in_progress` / `completed`. Custom statuses (including hyphenated like `in-review`) are recognized — STATUS regex is `[A-Za-z0-9_-]+`.
+STATUS matches the strict lifecycle: `planning`, `in_progress`, or `review`;
+`no_task` is the only pseudo-status and `in_progress-inline` is the Codex
+rendering variant.
 
 ### Fallback Strategy (hook never crashes)
 
@@ -1761,7 +1763,8 @@ After first-principles analysis (historical task:
 dropped the original design's `current_phase` string / `phase_history` /
 `checkpoints` / 7 new `task.py` commands / skill tail blocks. The core insight:
 **workflow.md Phase 1.0/1.1/... is documentation layering, not runtime state**.
-The existing `task.json.status` (`planning` / `in_progress` / `completed`) is
+The existing `task.json.status` (`planning` / `in_progress` / `review`, with
+`completed` written only during archive) is
 sufficient to express task lifecycle; sub-phase position is inferred by the AI
 from conversation history + git state.
 

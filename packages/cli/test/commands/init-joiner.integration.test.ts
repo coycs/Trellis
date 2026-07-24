@@ -143,7 +143,6 @@ describe("init() joiner onboarding", () => {
     expect(prd).toContain(
       `${expectedPythonCmd} ./.trellis/scripts/task.py list --assignee bob`,
     );
-    expect(prd).toContain(`${expectedPythonCmd} ./.trellis/scripts/task.py finish`);
     expect(prd).toContain(
       `${expectedPythonCmd} ./.trellis/scripts/task.py archive 00-join-bob`,
     );

@@ -26,7 +26,7 @@ If the user feels the AI does not know the current task in a new session, first 
 
 ## workflow-state
 
-workflow-state is a lightweight hint injected around each user turn. Based on current task status, it selects a block from `.trellis/workflow.md`, such as `no_task`, `planning`, `in_progress`, or `completed`.
+workflow-state is a lightweight hint injected around each user turn. Based on current task status, it selects `no_task`, `planning`, `in_progress`, or `review` from `.trellis/workflow.md`.
 
 If the user wants to change "what the AI should do next in a given state," edit the corresponding state block in `.trellis/workflow.md` first.
 

@@ -521,7 +521,6 @@ When the developer confirms the checklist items above are done with real
 examples (not placeholders), guide them to run:
 
 \`\`\`bash
-${pythonCmd} ./.trellis/scripts/task.py finish
 ${pythonCmd} ./.trellis/scripts/task.py archive 00-bootstrap-guidelines
 \`\`\`
 
@@ -737,7 +736,6 @@ When they feel oriented (or after you've covered the four topics with
 reasonable back-and-forth), guide them to run:
 
 \`\`\`bash
-${pythonCmd} ./.trellis/scripts/task.py finish
 ${pythonCmd} ./.trellis/scripts/task.py archive 00-join-${slug}
 \`\`\`
 

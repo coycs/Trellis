@@ -25,7 +25,7 @@ DIR_RUNTIME = ".runtime"
 DIR_SESSIONS = "sessions"
 DIR_CURSOR_SHELL = "cursor-shell"
 CURSOR_SHELL_TICKET_TTL_SECONDS = 30
-TASK_SESSION_COMMANDS = {"start", "current", "finish"}
+TASK_SESSION_COMMANDS = {"start", "current"}
 
 _SESSION_KEYS = ("session_id", "sessionId", "sessionID")
 _CONVERSATION_KEYS = ("conversation_id", "conversationId", "conversationID")
@@ -605,23 +605,6 @@ def set_active_task(
     if not _write_json(context_path, context):
         return None
     return ActiveTask(canonical, "session", context_key)
-
-
-def clear_active_task(
-    repo_root: Path,
-    platform_input: dict[str, Any] | None = None,
-    platform: str | None = None,
-) -> ActiveTask:
-    """Clear the active task by deleting the current session context file."""
-    context_key = resolve_context_key(platform_input, platform)
-    if not context_key:
-        return ActiveTask(None, "none")
-
-    previous = resolve_active_task(repo_root, platform_input, platform)
-    context_path = _context_path(repo_root, context_key)
-    if context_path.is_file():
-        _remove_file(context_path)
-    return previous
 
 
 def clear_task_from_sessions(task_path: str, repo_root: Path) -> int:

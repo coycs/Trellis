@@ -12,7 +12,6 @@ Usage:
     python3 task.py start <dir>                 # Set active task
     python3 task.py review <dir> -- <command>   # Run tests and enter review
     python3 task.py current [--source] [--json] # Show active task
-    python3 task.py finish                      # Clear active task
     python3 task.py set-branch <dir> <branch>   # Set git branch
     python3 task.py set-base-branch <dir> <branch>  # Set PR target branch
     python3 task.py set-scope <dir> <scope>     # Set scope for PR title
@@ -41,7 +40,6 @@ from common.paths import (
     get_current_task,
 )
 from common.active_task import (
-    clear_active_task,
     resolve_active_task,
     resolve_context_key,
     set_active_task,
@@ -57,7 +55,7 @@ from common.transition import (
     transition_lock,
 )
 
-# Import command handlers from split modules (also re-exports for plan.py compatibility)
+# Import command handlers from split modules.
 from common.task_store import (
     cmd_create,
     cmd_archive,
@@ -76,7 +74,7 @@ from common.task_context import (
 
 
 # =============================================================================
-# Command: start / finish
+# Command: approve / start / review
 # =============================================================================
 
 def cmd_approve(args: argparse.Namespace) -> int:
@@ -179,27 +177,6 @@ def cmd_review(args: argparse.Namespace) -> int:
         return 1
 
     print(colored("✓ Tests passed; status: in_progress → review", Colors.GREEN))
-    return 0
-
-
-def cmd_finish(args: argparse.Namespace) -> int:
-    """Clear active task."""
-    repo_root = get_repo_root()
-    active = clear_active_task(repo_root)
-    current = active.task_path
-
-    if not current:
-        print(colored("No current task set", Colors.YELLOW))
-        return 0
-
-    # Resolve task.json path before clearing
-    task_json_path = repo_root / current / FILE_TASK_JSON
-
-    print(colored(f"✓ Cleared current task (was: {current})", Colors.GREEN))
-    print(f"Source: {active.source}")
-
-    if task_json_path.is_file():
-        run_task_hooks("after_finish", task_json_path, repo_root)
     return 0
 
 
@@ -428,7 +405,6 @@ Usage:
   python3 task.py start <dir>                        Set active task
   python3 task.py review <dir> -- <command...>       Run tests and enter review
   python3 task.py current [--source]                 Show active task
-  python3 task.py finish                             Clear active task
   python3 task.py set-branch <dir> <branch>          Set git branch
   python3 task.py set-base-branch <dir> <branch>     Set PR target branch
   python3 task.py set-scope <dir> <scope>            Set scope for PR title
@@ -444,7 +420,7 @@ Monorepo options:
 
 List options:
   --mine, -m           Show only tasks assigned to current developer
-  --status, -s <s>     Filter by status (planning, in_progress, review, completed)
+  --status, -s <s>     Filter by status (planning, in_progress, review)
   --json               Output machine-readable JSON (also available on `current`)
 
 Examples:
@@ -458,7 +434,6 @@ Examples:
   python3 task.py start .trellis/tasks/01-21-add-login
   python3 task.py review .trellis/tasks/01-21-add-login -- npm test
   python3 task.py current --source
-  python3 task.py finish
   python3 task.py archive add-login
   python3 task.py add-subtask parent-task child-task  # Link existing tasks
   python3 task.py remove-subtask parent-task child-task
@@ -474,36 +449,6 @@ Examples:
 
 def main() -> int:
     """CLI entry point."""
-    # Deprecation guard: `init-context` was removed in v0.5.0-beta.12.
-    # Detect early so argparse doesn't mask the real reason with a generic
-    # "invalid choice" error.
-    if len(sys.argv) >= 2 and sys.argv[1] == "init-context":
-        print(
-            colored(
-                "Error: `task.py init-context` was removed in v0.5.0-beta.12.",
-                Colors.RED,
-            ),
-            file=sys.stderr,
-        )
-        print(
-            "implement.jsonl / check.jsonl are now seeded on `task.py create` for",
-            file=sys.stderr,
-        )
-        print(
-            "sub-agent-capable platforms and curated by the AI during planning when needed.",
-            file=sys.stderr,
-        )
-        print("See .trellis/workflow.md planning artifact guidance or run:", file=sys.stderr)
-        print(
-            "  python3 ./.trellis/scripts/get_context.py --mode phase --step 1",
-            file=sys.stderr,
-        )
-        print(
-            "Use `task.py add-context <dir> implement|check <path> <reason>` to append entries.",
-            file=sys.stderr,
-        )
-        return 2
-
     parser = argparse.ArgumentParser(
         description="Task Management Script",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -577,9 +522,6 @@ def main() -> int:
     p_current.add_argument("--json", action="store_true",
                            help="Output machine-readable JSON")
 
-    # finish
-    subparsers.add_parser("finish", help="Clear active task")
-
     # set-branch
     p_branch = subparsers.add_parser("set-branch", help="Set git branch")
     p_branch.add_argument("dir", help="Task directory")
@@ -609,7 +551,12 @@ def main() -> int:
     # list
     p_list = subparsers.add_parser("list", help="List tasks")
     p_list.add_argument("--mine", "-m", action="store_true", help="My tasks only")
-    p_list.add_argument("--status", "-s", help="Filter by status")
+    p_list.add_argument(
+        "--status",
+        "-s",
+        choices=("planning", "in_progress", "review"),
+        help="Filter by status",
+    )
     p_list.add_argument("--json", action="store_true", help="Output machine-readable JSON")
 
     # add-subtask
@@ -641,7 +588,6 @@ def main() -> int:
         "start": cmd_start,
         "review": cmd_review,
         "current": cmd_current,
-        "finish": cmd_finish,
         "set-branch": cmd_set_branch,
         "set-base-branch": cmd_set_base_branch,
         "set-scope": cmd_set_scope,

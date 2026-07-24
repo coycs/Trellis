@@ -1069,7 +1069,7 @@ function adoptKey(root: string, key: string): string {
 
 // ── Workflow State Breadcrumb ─────────────────────────────────────────
 const WF_RE =
-  /\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n([\s\S]*?)\n\s*\[\/workflow-state:\1\]/g;
+  /\[workflow-state:(no_task|planning|in_progress(?:-inline)?|review)\]\s*\n([\s\S]*?)\n\s*\[\/workflow-state:\1\]/g;
 function workflowBreadcrumb(root: string, key: string | null): string {
   const wf = readText(join(root, ".trellis", "workflow.md"));
   if (!wf) return "";

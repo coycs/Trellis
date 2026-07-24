@@ -111,7 +111,6 @@ python3 ./.trellis/scripts/task.py start <task>
 python3 ./.trellis/scripts/task.py current --source
 python3 ./.trellis/scripts/task.py add-context <task> implement <file> <reason>
 python3 ./.trellis/scripts/task.py validate <task>
-python3 ./.trellis/scripts/task.py finish
 python3 ./.trellis/scripts/task.py archive <task>
 ```
 

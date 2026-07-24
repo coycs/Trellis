@@ -1,6 +1,6 @@
 # Change Local Task Lifecycle
 
-Task lifecycle includes creation, start, context configuration, finish, archive, parent/child tasks, and lifecycle hooks. The default customization targets are `.trellis/tasks/`, `.trellis/config.yaml`, and `.trellis/scripts/`.
+Task lifecycle includes creation, approval, start, review, archive, parent/child tasks, and lifecycle hooks. The default customization targets are `.trellis/tasks/`, `.trellis/config.yaml`, and `.trellis/scripts/`.
 
 ## Read These Files First
 
@@ -17,7 +17,6 @@ Task lifecycle includes creation, start, context configuration, finish, archive,
 | --- | --- |
 | Automatically sync an external system after task creation | `hooks.after_create` in `.trellis/config.yaml`. |
 | Automatically update status after task start | `hooks.after_start` in `.trellis/config.yaml`. |
-| Run a script after task finish | `hooks.after_finish` in `.trellis/config.yaml`. |
 | Clean external resources after archive | `hooks.after_archive` in `.trellis/config.yaml`. |
 | Change default task fields | `.trellis/scripts/common/task_store.py`. |
 | Change task parsing/search | `.trellis/scripts/common/task_utils.py`. |
@@ -33,8 +32,6 @@ hooks:
     - "python3 .trellis/scripts/hooks/my_sync.py create"
   after_start:
     - "python3 .trellis/scripts/hooks/my_sync.py start"
-  after_finish:
-    - "python3 .trellis/scripts/hooks/my_sync.py finish"
   after_archive:
     - "python3 .trellis/scripts/hooks/my_sync.py archive"
 ```

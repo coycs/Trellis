@@ -176,10 +176,8 @@ def get_active_task(root: Path, input_data: dict) -> Optional[tuple[str, str, st
 # Breadcrumb loading: parse workflow.md, fall back to hardcoded defaults
 # ---------------------------------------------------------------------------
 
-# Supports STATUS values with letters, digits, underscores, hyphens
-# (so "in-review" / "blocked-by-team" work alongside "in_progress").
 _TAG_RE = re.compile(
-    r"\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n(.*?)\n\s*\[/workflow-state:\1\]",
+    r"\[workflow-state:(no_task|planning|in_progress(?:-inline)?|review)\]\s*\n(.*?)\n\s*\[/workflow-state:\1\]",
     re.DOTALL,
 )
 
@@ -263,8 +261,7 @@ def prompt_has_skip_keyword(prompt: str, keyword: str) -> bool:
 def _resolve_codex_dispatch_mode(config: dict) -> str:
     """Normalize `codex.dispatch_mode` from .trellis/config.yaml to "auto" or "inline".
 
-    Defaults to `auto`. The legacy `sub-agent` value is an alias for `auto`.
-    Any other explicit value (including invalid ones) falls back to `inline`
+    Defaults to `auto`. Any other explicit value falls back to `inline`
     without per-turn warnings. Shared by `_codex_mode_banner` (the per-turn
     banner) and `resolve_breadcrumb_key` (the breadcrumb tag key) so the two
     stay in lockstep.
@@ -276,7 +273,7 @@ def _resolve_codex_dispatch_mode(config: dict) -> str:
             cfg_mode = str(codex_cfg.get("dispatch_mode", mode)).strip().lower()
             if cfg_mode == "inline":
                 mode = "inline"
-            elif cfg_mode in ("auto", "sub-agent"):
+            elif cfg_mode == "auto":
                 mode = "auto"
             else:
                 mode = "inline"
@@ -291,8 +288,7 @@ def _codex_mode_banner(config: dict) -> str:
     injection with a child-side fallback. This does not rely on inherited
     parent transcripts: `fork_turns` remains caller-controlled, and
     fresh-history sub-agents still receive their explicit delegated task and
-    inherited session configuration. `inline` is an explicit opt-out; the
-    legacy `sub-agent` value is an alias for `auto`. Invalid explicit values
+    inherited session configuration. `inline` is an explicit opt-out. Invalid explicit values
     fall back to `inline` without per-turn warnings. The banner makes the
     active mode explicit to Codex AI per turn, complementing the workflow-state
     body which is per-status. Mode tells AI which dispatch protocol to follow;

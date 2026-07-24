@@ -353,8 +353,7 @@ def _get_task_status(trellis_dir: Path, input_data: dict) -> str:
     if active.stale or not task_dir.is_dir():
         return (
             f"Status: STALE POINTER\nTask: {task_ref}\n"
-            f"Next-Action: Run `python3 ./.trellis/scripts/task.py finish` to clear the stale pointer, "
-            "then ask the user what to work on next."
+            "Next-Action: Start the intended task to replace this stale session pointer."
         )
 
     task_json_path = task_dir / "task.json"
@@ -372,13 +371,6 @@ def _get_task_status(trellis_dir: Path, input_data: dict) -> str:
     if (task_dir / "research").is_dir():
         present.append("research/")
     present_line = ", ".join(present) if present else "(none)"
-
-    if task_status == "completed":
-        return (
-            f"Status: COMPLETED\nTask: {task_title}\n"
-            f"Present: {present_line}\n"
-            "Next-Action: Run `/trellis:finish-work`. If the working tree is dirty, return to Phase 3.4 first."
-        )
 
     has_prd = (task_dir / "prd.md").is_file()
     has_design = (task_dir / "design.md").is_file()
@@ -695,7 +687,7 @@ def _extract_range(content: str, start_header: str, end_header: str) -> str:
 
 
 _BREADCRUMB_TAG_RE = re.compile(
-    r"\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n.*?\n\s*\[/workflow-state:\1\]",
+    r"\[workflow-state:(no_task|planning|in_progress(?:-inline)?|review)\]\s*\n.*?\n\s*\[/workflow-state:\1\]",
     re.DOTALL,
 )
 

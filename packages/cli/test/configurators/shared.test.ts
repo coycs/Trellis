@@ -404,12 +404,12 @@ describe("resolvePlaceholders", () => {
       expect(resolvePlaceholders(input)).toBe(input);
     });
 
-    it("works alongside {{PYTHON_CMD}} in a realistic init-context invocation", () => {
+    it("works alongside {{PYTHON_CMD}} in a realistic add-context invocation", () => {
       const input =
-        '{{PYTHON_CMD}} ./.trellis/scripts/task.py init-context "$TASK_DIR" <type> --platform {{CLI_FLAG}}';
+        '{{PYTHON_CMD}} ./.trellis/scripts/task.py add-context "$TASK_DIR" implement <file> {{CLI_FLAG}}';
       const py = process.platform === "win32" ? "python" : "python3";
       expect(resolvePlaceholders(input, codexCtx)).toBe(
-        `${py} ./.trellis/scripts/task.py init-context "$TASK_DIR" <type> --platform codex`,
+        `${py} ./.trellis/scripts/task.py add-context "$TASK_DIR" implement <file> codex`,
       );
     });
   });

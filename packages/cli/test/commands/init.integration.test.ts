@@ -1125,9 +1125,6 @@ describe("init() integration", () => {
     expect(prd).toContain("- [ ] Fill guidelines for core");
     expect(prd).toContain("- [ ] Fill guidelines for ui");
     expect(prd).toContain(
-      `${expectedPythonCmd} ./.trellis/scripts/task.py finish`,
-    );
-    expect(prd).toContain(
       `${expectedPythonCmd} ./.trellis/scripts/task.py archive 00-bootstrap-guidelines`,
     );
   });

@@ -234,7 +234,7 @@ def _get_task_status(trellis_dir: Path, hook_input: dict) -> str:
     if active.stale or not task_dir.is_dir():
         return (
             f"Status: STALE POINTER\nTask: {task_ref}\n"
-            "Next: Task directory not found. Run: python3 ./.trellis/scripts/task.py finish"
+            "Next: Start the intended task to replace this stale session pointer"
         )
 
     task_json_path = task_dir / "task.json"
@@ -247,13 +247,6 @@ def _get_task_status(trellis_dir: Path, hook_input: dict) -> str:
 
     task_title = task_data.get("title", task_ref)
     task_status = task_data.get("status", "unknown")
-
-    if task_status == "completed":
-        return (
-            f"Status: COMPLETED\nTask: {task_title}\n"
-            f"Next: Archive with `python3 ./.trellis/scripts/task.py archive {task_dir.name}` "
-            "or start a new task."
-        )
 
     has_prd = (task_dir / "prd.md").is_file()
     has_design = (task_dir / "design.md").is_file()
@@ -434,7 +427,7 @@ def _extract_range(content: str, start_header: str, end_header: str) -> str:
 
 
 _BREADCRUMB_TAG_RE = re.compile(
-    r"\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n.*?\n\s*\[/workflow-state:\1\]",
+    r"\[workflow-state:(no_task|planning|in_progress(?:-inline)?|review)\]\s*\n.*?\n\s*\[/workflow-state:\1\]",
     re.DOTALL,
 )
 

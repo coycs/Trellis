@@ -1765,41 +1765,6 @@ describe("regression: current-task path normalization", () => {
     );
   });
 
-  it("[session-current-task] task.py finish deletes the session runtime context", () => {
-    setupTaskRepo();
-    const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
-    const contextPath = path.join(
-      tmpDir,
-      ".trellis",
-      ".runtime",
-      "sessions",
-      "session-finish.json",
-    );
-
-    execSync(
-      `${pythonCmd} ${JSON.stringify(taskScriptPath)} start ${JSON.stringify(".trellis/tasks/issue-106")}`,
-      {
-        cwd: tmpDir,
-        encoding: "utf-8",
-        env: sessionEnv({ TRELLIS_CONTEXT_ID: "session-finish" }),
-      },
-    );
-    expect(fs.existsSync(contextPath)).toBe(true);
-
-    const output = execSync(
-      `${pythonCmd} ${JSON.stringify(taskScriptPath)} finish`,
-      {
-        cwd: tmpDir,
-        encoding: "utf-8",
-        env: sessionEnv({ TRELLIS_CONTEXT_ID: "session-finish" }),
-      },
-    );
-
-    expect(output).toContain("Cleared current task");
-    expect(output).toContain("Source: session:session-finish");
-    expect(fs.existsSync(contextPath)).toBe(false);
-  });
-
   it("[workflow-state-r7] task.py create auto-sets session pointer when TRELLIS_CONTEXT_ID is set (planning breadcrumb reachable)", () => {
     // Pre-R7 (v0.5.0-beta.19 and earlier), `task.py create` only created the
     // task directory; the session pointer was set by `task.py start`. That
@@ -2630,26 +2595,6 @@ print(json.dumps({
       current_task: string;
     };
     expect(context.current_task).toBe(".trellis/tasks/issue-106");
-  });
-
-  it("[session-current-task] task.py finish ignores legacy .current-task when no session task is set", () => {
-    setupTaskRepo();
-    writeLegacyCurrentTask(".trellis/tasks/issue-106");
-    const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
-
-    const output = execSync(
-      `${pythonCmd} ${JSON.stringify(taskScriptPath)} finish`,
-      {
-        cwd: tmpDir,
-        encoding: "utf-8",
-        env: sessionEnv({ TRELLIS_CONTEXT_ID: "session-fallback" }),
-      },
-    );
-
-    expect(output).toContain("No current task set");
-    expect(fs.existsSync(path.join(tmpDir, ".trellis", ".current-task"))).toBe(
-      true,
-    );
   });
 
   it("[session-current-task] task.py current ignores legacy .current-task without context key", () => {
@@ -4064,12 +4009,12 @@ print(json.dumps({
 
   it("[workflow-state-dispatch-mode-dedup] _codex_mode_banner and resolve_breadcrumb_key share one normalization helper", () => {
     // _codex_mode_banner and resolve_breadcrumb_key both normalize
-    // codex.dispatch_mode to auto/inline (sub-agent alias, invalid → inline).
+    // codex.dispatch_mode to auto/inline (invalid → inline).
     // That cascade must live in exactly one place so the two never drift.
     const py = injectWorkflowStateScript ?? "";
     expect(py).toContain("def _resolve_codex_dispatch_mode(");
     const cascadeOccurrences = (
-      py.match(/elif cfg_mode in \("auto", "sub-agent"\):/g) ?? []
+      py.match(/elif cfg_mode == "auto":/g) ?? []
     ).length;
     expect(cascadeOccurrences).toBe(1);
   });
@@ -4081,26 +4026,6 @@ print(json.dumps({
     );
     const js = fs.readFileSync(jsURL, "utf-8");
     expect(js).not.toMatch(/const\s+FALLBACK_BREADCRUMBS\s*=\s*\{/);
-  });
-
-  it("[workflow-state] custom status with hyphen matches via regex", () => {
-    setupTaskRepo();
-    writeSessionContext("session_workflow-a", ".trellis/tasks/issue-106");
-    writeWorkflowStateHook();
-    setStatus("in-review");
-    writeWorkflowMd(
-      "[workflow-state:in-review]\nTeam review pending\n[/workflow-state:in-review]\n",
-    );
-
-    const parsed = JSON.parse(runInjectWorkflowState()) as {
-      hookSpecificOutput: { additionalContext: string };
-    };
-    expect(parsed.hookSpecificOutput.additionalContext).toContain(
-      "Task: issue-106 (in-review)",
-    );
-    expect(parsed.hookSpecificOutput.additionalContext).toContain(
-      "Team review pending",
-    );
   });
 
   it("[workflow-state] unknown status with no tag emits generic fallback, not silent", () => {
@@ -4441,12 +4366,12 @@ print(json.dumps({
     expect(fs.existsSync(path.join(taskDir, "check.jsonl"))).toBe(false);
   });
 
-  it("[issue-373] task.py create seeds jsonl when Codex explicitly uses sub-agent dispatch", () => {
+  it("[issue-373] task.py create seeds jsonl when Codex explicitly uses auto dispatch", () => {
     setupTaskRepo();
     fs.mkdirSync(path.join(tmpDir, ".codex"), { recursive: true });
     writeProjectFile(
       path.join(".trellis", "config.yaml"),
-      'codex:\n  dispatch_mode: sub-agent  # opt into trellis-* sub-agents\n',
+      "codex:\n  dispatch_mode: auto\n",
     );
     const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
     execSync(
@@ -4469,28 +4394,6 @@ print(json.dumps({
       expect(row._example).toBeDefined();
       expect(row.file).toBeUndefined();
     }
-  });
-
-  it("[init-context-removal] task.py init-context is deprecated with clear pointer to planning artifacts", () => {
-    setupTaskRepo();
-    const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
-    let threw = false;
-    let stderr = "";
-    try {
-      execSync(
-        `${pythonCmd} ${JSON.stringify(taskScriptPath)} init-context .trellis/tasks/issue-106 fullstack`,
-        { cwd: tmpDir, encoding: "utf-8" },
-      );
-    } catch (err) {
-      threw = true;
-      const e = err as { stderr?: string; status?: number };
-      stderr = e.stderr ?? "";
-      expect(e.status).toBe(2);
-    }
-    expect(threw).toBe(true);
-    expect(stderr).toContain("v0.5.0-beta.12");
-    expect(stderr).toContain("planning artifact guidance");
-    expect(stderr).toContain("add-context");
   });
 
   it("[init-context-removal] inject-subagent-context.py skips seed rows (no `file` field)", () => {
@@ -4802,17 +4705,23 @@ print(len(entries))
 
   it("[workflow-state-r3-review] template workflow.md has a review block", () => {
     const wf = templateWorkflowMd();
-    expect(wf).toMatch(
-      /\[workflow-state:review\]\s*\n[\s\S]+?\n\s*\[\/workflow-state:review\]/,
+    const states = [...wf.matchAll(/\[workflow-state:([a-z_-]+)\]/g)].map(
+      ([, state]) => state,
     );
-    expect(wf).not.toContain("[workflow-state:completed]");
+    expect(new Set(states)).toEqual(
+      new Set([
+        "no_task",
+        "planning",
+        "planning-inline",
+        "in_progress",
+        "in_progress-inline",
+        "review",
+      ]),
+    );
   });
 
   it("[strip-breadcrumb] _strip_breadcrumb_tag_blocks only strips matched STATUS pairs (backreference parity with parser)", () => {
-    // Finding 1: the strip regex previously used [A-Za-z0-9_-]+ on both ends,
-    // accepting [workflow-state:A]...[/workflow-state:B]. The parser uses \1
-    // backreference to require matched STATUS. Tightening the strip regex to
-    // use the same backreference closes the contract gap.
+    // Parser and stripper both require a supported, matching status pair.
     const sessionStartScript = getSharedHookScripts().find(
       (hook) => hook.name === "session-start.py",
     )?.content;
@@ -4887,16 +4796,14 @@ print(len(entries))
     expect(output).not.toContain("#### 2.1 Implement");
   });
 
-  it("[workflow-v2] --mode phase --platform codex (sub-agent mode) filters out generic before-dev routing", () => {
+  it("[workflow-v2] --mode phase --platform codex auto mode filters out generic before-dev routing", () => {
     writeTrellisScripts();
     writeProjectFile(path.join(".trellis", ".developer"), "name=test\n");
     writeProjectFile(
       path.join(".trellis", "workflow.md"),
       templateWorkflowMd(),
     );
-    // Codex defaults to inline since 0.5.9; opt into sub-agent dispatch
-    // explicitly so the legacy spawn-trellis-implement block surfaces.
-    writeConfigYaml("codex:\n  dispatch_mode: sub-agent\n");
+    writeConfigYaml("codex:\n  dispatch_mode: auto\n");
 
     const contextScript = path.join(
       tmpDir,
@@ -5060,7 +4967,7 @@ print(len(entries))
     // consumed by inject-workflow-state.py. Inline `[workflow-state:planning]`
     // mentions in narrative prose are fine; only complete blocks are stripped.
     const tagBlockRe =
-      /\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n[\s\S]*?\n\s*\[\/workflow-state:\1\]/;
+      /\[workflow-state:(no_task|planning|in_progress(?:-inline)?|review)\]\s*\n[\s\S]*?\n\s*\[\/workflow-state:\1\]/;
     expect(tagBlockRe.test(workflowBlock)).toBe(false);
   });
 
@@ -5241,7 +5148,7 @@ print(len(entries))
     expect(ctx).not.toContain("MAIN SESSION edits code");
   });
 
-  it("[issue-codex-dispatch-mode] codex breadcrumb routes to plain status when codex.dispatch_mode=sub-agent", () => {
+  it("[issue-codex-dispatch-mode] codex breadcrumb routes to plain status when codex.dispatch_mode=auto", () => {
     setupTaskRepo();
     writeSessionContext("session_workflow-a", ".trellis/tasks/issue-106");
     const codexHookPath = writeCodexInjectHook();
@@ -5254,7 +5161,7 @@ print(len(entries))
         "MAIN SESSION edits code via trellis-before-dev directly.\n" +
         "[/workflow-state:in_progress-inline]\n",
     );
-    writeConfigYaml("codex:\n  dispatch_mode: sub-agent\n");
+    writeConfigYaml("codex:\n  dispatch_mode: auto\n");
 
     const parsed = JSON.parse(
       runPython(
@@ -5380,7 +5287,7 @@ print(len(entries))
         "spec.loader.exec_module(mod)",
         "result = {",
         "  'codex_inline': mod.resolve_breadcrumb_key('in_progress', 'codex', {'codex': {'dispatch_mode': 'inline'}}),",
-        "  'codex_subagent': mod.resolve_breadcrumb_key('in_progress', 'codex', {'codex': {'dispatch_mode': 'sub-agent'}}),",
+        "  'codex_auto': mod.resolve_breadcrumb_key('in_progress', 'codex', {'codex': {'dispatch_mode': 'auto'}}),",
         "  'codex_missing': mod.resolve_breadcrumb_key('in_progress', 'codex', {}),",
         "  'claude_inline': mod.resolve_breadcrumb_key('in_progress', 'claude', {'codex': {'dispatch_mode': 'inline'}}),",
         "}",
@@ -5398,7 +5305,7 @@ print(len(entries))
         .pop() ?? "{}",
     ) as Record<string, string>;
     expect(result.codex_inline).toBe("in_progress-inline");
-    expect(result.codex_subagent).toBe("in_progress");
+    expect(result.codex_auto).toBe("in_progress");
     // Default for Codex is native auto dispatch; only explicit inline swaps
     // to the main-session breadcrumb.
     expect(result.codex_missing).toBe("in_progress");
@@ -5407,9 +5314,7 @@ print(len(entries))
 
   it("[issue-codex-dispatch-mode] inline `#` comment after value is stripped (config.yaml uncomment leaves trailing hint)", () => {
     // The shipped template has:
-    //   #   dispatch_mode: sub-agent  # or "inline" to let the main agent edit code directly
-    // Users uncomment by removing leading `#` and may change "sub-agent" to "inline"
-    // while leaving the trailing hint comment, producing:
+    // Users may leave the trailing hint comment, producing:
     //   codex:
     //     dispatch_mode: inline  # or "inline" to let the main agent edit code directly
     // The minimal YAML parser MUST treat the trailing ` # ...` as a comment, not as
@@ -5467,7 +5372,6 @@ print(len(entries))
         "result = {",
         "  'codex_default': resolve_effective_platform('codex', {}),",
         "  'codex_explicit_auto': resolve_effective_platform('codex', {'codex': {'dispatch_mode': 'auto'}}),",
-        "  'codex_explicit_subagent': resolve_effective_platform('codex', {'codex': {'dispatch_mode': 'sub-agent'}}),",
         "  'codex_inline': resolve_effective_platform('codex', {'codex': {'dispatch_mode': 'inline'}}),",
         "  'codex_invalid_mode': resolve_effective_platform('codex', {'codex': {'dispatch_mode': 'invalid'}}),",
         "  'codex_invalid_config': resolve_effective_platform('codex', {'codex': True}),",
@@ -5488,7 +5392,6 @@ print(len(entries))
     ) as Record<string, string>;
     expect(result.codex_default).toBe("codex-sub-agent");
     expect(result.codex_explicit_auto).toBe("codex-sub-agent");
-    expect(result.codex_explicit_subagent).toBe("codex-sub-agent");
     expect(result.codex_inline).toBe("codex-inline");
     // Invalid mode falls back to explicit inline rather than dispatching.
     expect(result.codex_invalid_mode).toBe("codex-inline");
@@ -5526,17 +5429,6 @@ print(len(entries))
       "<codex-mode>auto: implement/check work defaults to Trellis sub-agents; native Codex context injection is preferred and child-side loading is the fallback. The main session still coordinates, clarifies, updates specs, commits, and finishes.</codex-mode>",
     );
 
-    // Legacy sub-agent alias → the auto-dispatch banner.
-    writeConfigYaml("codex:\n  dispatch_mode: sub-agent\n");
-    const subAgentRun = JSON.parse(
-      runPython(
-        codexHookPath,
-        JSON.stringify({ cwd: tmpDir, session_id: "workflow-a" }),
-      ),
-    ) as { hookSpecificOutput: { additionalContext: string } };
-    expect(subAgentRun.hookSpecificOutput.additionalContext).toContain(
-      "<codex-mode>auto: implement/check work defaults to Trellis sub-agents; native Codex context injection is preferred and child-side loading is the fallback. The main session still coordinates, clarifies, updates specs, commits, and finishes.</codex-mode>",
-    );
   });
 
   it("[issue-codex-dispatch-mode] non-codex hook does NOT inject <codex-mode> banner", () => {
@@ -6192,46 +6084,7 @@ describe("regression: cli_adapter platform support (beta.9, beta.13, beta.16)", 
     expect(commonCliAdapter).toMatch(/entry\.name\.startswith\("trellis-"\)/);
   });
 
-  // v0.5.0-beta.12 removed `task.py init-context`; jsonl manifests are now
-  // curated during planning when needed. The subparser, cmd_init_context, and get_check_context
-  // helpers are all gone. task.py still guards against old invocations with
-  // a clear deprecation message so users who muscle-memory-type the old
-  // command get pointed at the new workflow.
-  it("[init-context-removal] task.py no longer registers init-context subparser", () => {
-    const taskScript = getAllScripts().get("task.py");
-    expect(taskScript).toBeDefined();
-    expect(taskScript as string).not.toMatch(
-      /subparsers\.add_parser\(\s*"init-context"/,
-    );
-  });
-
-  it("[init-context-removal] task.py emits deprecation message on init-context invocation", () => {
-    const taskScript = getAllScripts().get("task.py");
-    expect(taskScript).toBeDefined();
-    // Guard fires before argparse so user sees the real reason (not argparse's
-    // generic "invalid choice" error).
-    expect(taskScript as string).toMatch(
-      /sys\.argv\[1\]\s*==\s*"init-context"/,
-    );
-    expect(taskScript as string).toContain("v0.5.0-beta.12");
-    expect(taskScript as string).toContain("planning artifact guidance");
-  });
-
-  it("[init-context-removal] common/task_context.py removes cmd_init_context + get_check_context helpers", () => {
-    const taskContext = getAllScripts().get("common/task_context.py");
-    expect(taskContext).toBeDefined();
-    // Mechanical-fill path gone; only curate helpers remain.
-    expect(taskContext as string).not.toMatch(/def cmd_init_context\b/);
-    expect(taskContext as string).not.toMatch(/def get_check_context\b/);
-    expect(taskContext as string).not.toMatch(/def get_implement_backend\b/);
-    expect(taskContext as string).not.toMatch(/def get_implement_frontend\b/);
-    // Remaining surface — still callable by task.py.
-    expect(taskContext as string).toMatch(/def cmd_add_context\b/);
-    expect(taskContext as string).toMatch(/def cmd_validate\b/);
-    expect(taskContext as string).toMatch(/def cmd_list_context\b/);
-  });
-
-  it("[init-context-removal] task_store.cmd_create seeds jsonl for sub-agent platforms", () => {
+  it("[task-context] task_store.cmd_create seeds jsonl for sub-agent platforms", () => {
     const taskStore = getAllScripts().get("common/task_store.py");
     expect(taskStore).toBeDefined();
     // Sub-agent platform probe.
@@ -6302,24 +6155,6 @@ describe("regression: cli_adapter platform support (beta.9, beta.13, beta.16)", 
       }
     }
     expect(offenders).toEqual([]);
-  });
-
-  it("[init-context-removal] platform-specific start templates no longer reference init-context", () => {
-    // v0.5.0-beta.12 removed `task.py init-context`. Platform start templates
-    // were updated to describe planning-time context curation instead. They must not
-    // reference the deleted subcommand.
-    const pkgRoot = path.resolve(__dirname, "..");
-    const codexStart = fs.readFileSync(
-      path.join(pkgRoot, "src/templates/codex/skills/start/SKILL.md"),
-      "utf-8",
-    );
-    expect(codexStart).not.toContain("task.py init-context");
-
-    const copilotStart = fs.readFileSync(
-      path.join(pkgRoot, "src/templates/copilot/prompts/start.prompt.md"),
-      "utf-8",
-    );
-    expect(copilotStart).not.toContain("task.py init-context");
   });
 
   it("[beta.9] cli_adapter.py has get_cli_adapter function with validation", () => {
@@ -7817,7 +7652,7 @@ describe("regression: configSectionsAdded (issue-codex-dispatch-mode)", () => {
       "# Codex (sub-agent dispatch behavior)",
       "#-------------------------------------------------------------------------------",
       "# codex:",
-      "#   dispatch_mode: sub-agent",
+      "#   dispatch_mode: auto",
       "",
     ].join("\n");
 
@@ -7837,7 +7672,7 @@ describe("regression: configSectionsAdded (issue-codex-dispatch-mode)", () => {
     const after = fs.readFileSync(userConfigPath, "utf-8");
     expect(after).toContain("# Codex (sub-agent dispatch behavior)");
     expect(after).toContain("codex:");
-    expect(after).toContain("dispatch_mode: sub-agent");
+    expect(after).toContain("dispatch_mode: auto");
 
     // Rerun: sentinel now present, no append.
     const second = applyConfigSectionsAdded(entries, tmpDir, bundled);

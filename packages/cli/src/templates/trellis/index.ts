@@ -77,6 +77,29 @@ export const configYamlTemplate = readTemplate("config.yaml");
 export const gitignoreTemplate = readTemplate("gitignore.txt");
 export const removedTemplates = [
   ".trellis/scripts/common/workflow_gate.py",
+  ".claude/skills/trellis-meta/references/claude-code/agents.md",
+  ".claude/skills/trellis-meta/references/claude-code/hooks.md",
+  ".claude/skills/trellis-meta/references/claude-code/multi-session.md",
+  ".claude/skills/trellis-meta/references/claude-code/overview.md",
+  ".claude/skills/trellis-meta/references/claude-code/ralph-loop.md",
+  ".claude/skills/trellis-meta/references/claude-code/scripts.md",
+  ".claude/skills/trellis-meta/references/claude-code/worktree-config.md",
+  ".claude/skills/trellis-meta/references/core/files.md",
+  ".claude/skills/trellis-meta/references/core/overview.md",
+  ".claude/skills/trellis-meta/references/core/scripts.md",
+  ".claude/skills/trellis-meta/references/core/specs.md",
+  ".claude/skills/trellis-meta/references/core/tasks.md",
+  ".claude/skills/trellis-meta/references/core/workspace.md",
+  ".claude/skills/trellis-meta/references/how-to-modify/add-agent.md",
+  ".claude/skills/trellis-meta/references/how-to-modify/add-command.md",
+  ".claude/skills/trellis-meta/references/how-to-modify/add-phase.md",
+  ".claude/skills/trellis-meta/references/how-to-modify/add-spec.md",
+  ".claude/skills/trellis-meta/references/how-to-modify/change-verify.md",
+  ".claude/skills/trellis-meta/references/how-to-modify/modify-hook.md",
+  ".claude/skills/trellis-meta/references/how-to-modify/overview.md",
+  ".claude/skills/trellis-meta/references/meta/platform-compatibility.md",
+  ".claude/skills/trellis-meta/references/meta/self-iteration-guide.md",
+  ".claude/skills/trellis-meta/references/meta/trellis-local-template.md",
 ] as const;
 
 // Channel runtime agent definitions (loaded by

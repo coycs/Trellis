@@ -28,8 +28,8 @@ import { join } from "path"
 import { TrellisContext, debugLog, isTrellisSubagent } from "../lib/trellis-context.js"
 
 // Supports STATUS values with letters, digits, underscores, hyphens
-// (so "in-review" / "blocked-by-team" work alongside "in_progress").
-const TAG_RE = /\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n([\s\S]*?)\n\s*\[\/workflow-state:\1\]/g
+// Only strict lifecycle tags are recognized.
+const TAG_RE = /\[workflow-state:(no_task|planning|in_progress(?:-inline)?|review)\]\s*\n([\s\S]*?)\n\s*\[\/workflow-state:\1\]/g
 
 /**
  * Parse workflow.md for [workflow-state:STATUS] blocks.

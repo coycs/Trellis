@@ -164,10 +164,8 @@ def get_active_task(root: Path, input_data: dict) -> Optional[tuple[str, str, st
 # Breadcrumb loading: parse workflow.md, fall back to hardcoded defaults
 # ---------------------------------------------------------------------------
 
-# Supports STATUS values with letters, digits, underscores, hyphens
-# (so "in-review" / "blocked-by-team" work alongside "in_progress").
 _TAG_RE = re.compile(
-    r"\[workflow-state:([A-Za-z0-9_-]+)\]\s*\n(.*?)\n\s*\[/workflow-state:\1\]",
+    r"\[workflow-state:(no_task|planning|in_progress(?:-inline)?|review)\]\s*\n(.*?)\n\s*\[/workflow-state:\1\]",
     re.DOTALL,
 )
 
@@ -248,30 +246,25 @@ def prompt_has_skip_keyword(prompt: str, keyword: str) -> bool:
     return re.search(pattern, prompt, re.IGNORECASE) is not None
 
 
-def _codex_mode_banner(config: dict) -> str:
-    """Emit a `<codex-mode>` banner for the additionalContext payload.
-
-    Reads `codex.dispatch_mode` from .trellis/config.yaml; defaults to
-    `inline` when missing or invalid. Trellis defaults Codex dispatch to
-    `inline` to avoid relying on inherited parent transcripts — Codex
-    sub-agents may use fresh, full, or bounded conversation history
-    (`fork_turns`), and fresh-history agents still receive their explicit
-    delegated task and inherited session configuration; this is a Trellis
-    policy choice, not a Codex limitation. The banner makes the active
-    mode explicit to Codex AI per turn, complementing the workflow-state
-    body which is per-status. Mode tells AI which dispatch protocol to
-    follow; workflow-state tells AI what step it's at.
-    """
-    mode = "inline"
+def _resolve_codex_dispatch_mode(config: dict) -> str:
+    """Return the only supported Codex modes: auto or inline."""
+    mode = "auto"
     if isinstance(config, dict):
         codex_cfg = config.get("codex")
         if isinstance(codex_cfg, dict):
-            cfg_mode = codex_cfg.get("dispatch_mode")
-            if cfg_mode in ("inline", "sub-agent"):
+            cfg_mode = str(codex_cfg.get("dispatch_mode", mode)).strip().lower()
+            if cfg_mode in ("auto", "inline"):
                 mode = cfg_mode
-    if mode == "sub-agent":
+            else:
+                mode = "inline"
+    return mode
+
+
+def _codex_mode_banner(config: dict) -> str:
+    """Emit the active Codex dispatch mode."""
+    if _resolve_codex_dispatch_mode(config) == "auto":
         meaning = (
-            "sub-agent: implement/check work defaults to Trellis sub-agents; "
+            "auto: implement/check work defaults to Trellis sub-agents; "
             "the main session still coordinates, clarifies, updates specs, commits, and finishes."
         )
     else:
@@ -287,24 +280,10 @@ def resolve_breadcrumb_key(
 ) -> str:
     """Pick the breadcrumb tag key based on Codex dispatch_mode.
 
-    Codex defaults to ``inline`` as a Trellis policy choice to avoid relying
-    on inherited parent transcripts, not because Codex sub-agents are
-    technically unable to receive context (``fork_turns`` is caller-controlled
-    and fresh-history agents still get their explicit task + session config).
-    Users can opt into ``codex.dispatch_mode: sub-agent`` in
-    ``.trellis/config.yaml`` to use the parallel ``<status>-inline`` tag →
-    ``<status>`` flip. Invalid or missing values fall back to inline.
-
-    Non-codex platforms return the plain status unchanged.
+    Non-Codex platforms return the plain status unchanged.
     """
     if platform == "codex":
-        mode = "inline"
-        if isinstance(config, dict):
-            codex_cfg = config.get("codex")
-            if isinstance(codex_cfg, dict):
-                cfg_mode = codex_cfg.get("dispatch_mode")
-                if cfg_mode in ("inline", "sub-agent"):
-                    mode = cfg_mode
+        mode = _resolve_codex_dispatch_mode(config)
         return f"{status}-inline" if mode == "inline" else status
     return status
 

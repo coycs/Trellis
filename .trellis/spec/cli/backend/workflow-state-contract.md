@@ -36,8 +36,8 @@ Each breadcrumb body lives in a managed block of `.trellis/workflow.md`:
 [/workflow-state:STATUS]
 ```
 
-- STATUS character set: `[A-Za-z0-9_-]+` (letters, digits, underscores,
-  hyphens). Examples: `planning`, `in_progress`, `in-review`, `blocked-by-team`.
+- STATUS is one of `no_task`, `planning`, `in_progress`,
+  `in_progress-inline`, or `review`.
 - The body is read verbatim and inlined into the `<workflow-state>` block.
 - Both the opening and closing tags must end with the same STATUS string.
 
@@ -46,7 +46,7 @@ and the OpenCode plugin (`packages/cli/src/templates/opencode/plugins/inject-wor
 is:
 
 ```
-[workflow-state:([A-Za-z0-9_-]+)]\s*\n(.*?)\n\s*[/workflow-state:\1]
+[workflow-state:(no_task|planning|in_progress(?:-inline)?|review)]\s*\n(.*?)\n\s*[/workflow-state:\1]
 ```
 
 ### Invariant: parser regex ↔ strip regex must use the same `\1` backreference
@@ -56,7 +56,8 @@ There are two regex consumers of the marker syntax:
 1. **Parser** — extracts tag content for breadcrumb emission. Lives in `inject-workflow-state.py` (`_TAG_RE`) and `inject-workflow-state.js`.
 2. **Stripper** — removes tag blocks from the workflow.md range injected at SessionStart (so AI doesn't read each block twice — once in the workflow overview, once in the per-turn breadcrumb). Lives in `session-start.py` (shared / codex / copilot copies), `workflow_phase.py`, and any future SessionStart-equivalent script.
 
-Both regexes MUST use the `\1` backreference variant — `[workflow-state:([A-Za-z0-9_-]+)]...[/workflow-state:\1]` — so they only match well-formed pairs (same STATUS on open and close). A non-backreference variant like `[workflow-state:[A-Za-z0-9_-]+]...[/workflow-state:[A-Za-z0-9_-]+]` permits `STATUS_A...STATUS_B` mismatches, which can swallow surrounding content if a user typo'd the closing tag.
+Both regexes MUST use the `\1` backreference so they only match well-formed
+pairs with the same status on both tags.
 
 **Symptom of drift**: parser would refuse to emit content for a typo'd block (because parser uses `\1`), but stripper would silently consume it from the SessionStart payload (because stripper used the loose form). End result: the AI never sees that content via either channel — silent loss.
 
@@ -178,13 +179,7 @@ Subscribers must understand the difference:
 |-------|------------|-------------------|
 | `after_create` | end of `cmd_create` | `"planning"` (just written) |
 | `after_start` | end of `cmd_start` | `"in_progress"` if status was `"planning"`; otherwise unchanged. Re-running `start` does NOT re-fire status flip. |
-| `after_finish` | end of `cmd_finish` | **unchanged** — `cmd_finish` only clears the per-session active-task pointer. Status stays whatever it was (typically `"in_progress"`). |
 | `after_archive` | end of `cmd_archive` | `"completed"` (just written, then dir moved to `archive/YYYY-MM/`) |
-
-**Common mistake**: subscribing to `after_finish` to mark a task "done" in an
-external system (Linear, Jira). `after_finish` means "AI session closed its
-pointer to this task" — the task may resume in a different session. The
-correct event for "task is done" is `after_archive`.
 
 ---
 
@@ -197,7 +192,6 @@ Which breadcrumbs actually fire in normal flow:
 | `no_task` | ✅ reachable | Pseudo-status; emitted when `resolve_active_task()` returns no pointer. |
 | `planning` | ✅ reachable | After `cmd_create` (which now auto-sets the session pointer when available) and before `cmd_start`. `planning-inline` is the Codex inline-mode breadcrumb body for the same task status. |
 | `in_progress` | ✅ reachable | After `cmd_start`, until `cmd_archive`. `in_progress-inline` is the Codex inline-mode breadcrumb body for the same task status. |
-| `completed` | ❌ DEAD in normal flow | `cmd_archive` writes `status="completed"` and immediately moves the task dir to `archive/`. The session-pointer cleanup in `clear_task_from_sessions` runs before the move, so the resolver loses the pointer in the same call. The block body in workflow.md is preserved for a future status-transition redesign (e.g. an explicit `in_progress → completed` command) but no current code path produces it. |
 | `stale_<source_type>` | ✅ reachable (rare) | Synthesized when the session pointer references a deleted task directory. Emits the generic body via `build_breadcrumb` because no `stale_*` tag is shipped. |
 
 **Test invariant** (`test/regression.test.ts`): workflow-state blocks must
@@ -210,20 +204,6 @@ and `implement.md`; in-progress keeps the commit step reachable before
 - `test that workflow.md [workflow-state:in_progress] mentions commit (Phase 3.4)`
 - `test that workflow.md [workflow-state:planning] mentions planning artifact gate`
 - `test that workflow.md [workflow-state:no_task] asks for task-creation consent`
-
----
-
-## Custom statuses
-
-Forks can define custom statuses. To do so:
-
-1. Add a `[workflow-state:my-status]...[/workflow-state:my-status]` block to
-   `.trellis/workflow.md` (STATUS charset: `[A-Za-z0-9_-]+`).
-2. Add a lifecycle hook (`task.json.hooks.after_*`) that writes
-   `task.json.status = "my-status"` at the appropriate event. Without a
-   writer, the tag is never read because no task ever carries that status.
-3. (Optional) Add the status to `.trellis/spec/cli/backend/workflow-state-contract.md`'s
-   writer table when shipping the customization to other repos.
 
 ---
 
@@ -278,8 +258,7 @@ nested Trellis sub-agents.
   runtime parser that consumes headings, platform blocks, and breadcrumb tags
   has an explicit compatibility strategy and upgrade test coverage.
 - Don't introduce a `task.json.status` writer without updating this spec.
-- Don't subscribe to `after_finish` to detect task completion — it doesn't
-  mean what you think. Use `after_archive`.
+- Use `after_archive` to detect task completion.
 - Don't silently re-route a writer to a different status without auditing
   every breadcrumb consumer (`session-start.py`, `inject-workflow-state.py`,
   `task.py list`, etc.).
@@ -299,8 +278,7 @@ nested Trellis sub-agents.
 - Breadcrumb body that changes the contract (e.g. removing a `[required ·
   once]` enforcement line — flag in PR description)
 - New lifecycle event added to `run_task_hooks`
-- Reachability changes (e.g. wiring a new status transition that makes
-  `completed` reachable)
+- Reachability changes (for example, adding a new active lifecycle status)
 
 Cross-reference: `cli/backend/quality-guidelines.md` "Routing Fixes: Audit
 ALL Entry Paths" — that audit pattern is what this contract enforces for
