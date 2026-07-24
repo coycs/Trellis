@@ -56,6 +56,13 @@ from .task_utils import (
     resolve_task_dir,
     run_task_hooks,
 )
+from .transition import (
+    TransitionError,
+    git_state,
+    is_evidence_fresh,
+    transition,
+    transition_lock,
+)
 
 
 # =============================================================================
@@ -548,14 +555,42 @@ def cmd_archive(args: argparse.Namespace) -> int:
     dir_name = task_dir.name
     task_json_path = task_dir / FILE_TASK_JSON
 
-    # Update status before archiving
     today = datetime.now().strftime("%Y-%m-%d")
     # Names of child task dirs whose task.json gets modified below; passed
     # into safe_archive_paths_to_add so they're staged in this commit.
     modified_children: list[str] = []
-    if task_json_path.is_file():
-        data = read_json(task_json_path)
-        if data:
+    if not task_json_path.is_file():
+        print(colored("Error: task.json is missing", Colors.RED), file=sys.stderr)
+        return 1
+
+    try:
+        _, clean = git_state(repo_root)
+        if not clean:
+            raise TransitionError("commit or discard changes before archive")
+        with transition_lock(task_json_path):
+            data = read_json(task_json_path)
+            if not data:
+                raise TransitionError("task.json is invalid")
+            meta = data.get("meta")
+            workflow = meta.get("workflow") if isinstance(meta, dict) else None
+            evidence = workflow.get("evidence") if isinstance(workflow, dict) else None
+            latest = evidence[-1] if isinstance(evidence, list) and evidence else None
+            raw_commit = latest.get("commit") if isinstance(latest, dict) else None
+            commit = raw_commit if isinstance(raw_commit, str) else ""
+            data = transition(
+                task_dir,
+                data,
+                "completed",
+                evidence_fresh=is_evidence_fresh(repo_root, commit),
+            )
+            data["completedAt"] = today
+            if not write_json(task_json_path, data):
+                raise TransitionError("failed to update task status")
+    except TransitionError as exc:
+        print(colored(f"Error: {exc}", Colors.RED), file=sys.stderr)
+        return 1
+
+    if data:
             # Warn (don't block) when the recorded branch is stale — it was
             # likely already merged and deleted (#399 item 2).
             stored_branch = data.get("branch")
@@ -568,10 +603,6 @@ def cmd_archive(args: argparse.Namespace) -> int:
                     ),
                     file=sys.stderr,
                 )
-
-            data["status"] = "completed"
-            data["completedAt"] = today
-            write_json(task_json_path, data)
 
             # Handle subtask relationships on archive.
             # Keep this task in its parent's children list so progress

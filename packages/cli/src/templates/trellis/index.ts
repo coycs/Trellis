@@ -58,9 +58,7 @@ export const commonPackagesContext = readTemplate(
 export const commonWorkflowPhase = readTemplate(
   "scripts/common/workflow_phase.py",
 );
-export const commonWorkflowGate = readTemplate(
-  "scripts/common/workflow_gate.py",
-);
+export const commonTransition = readTemplate("scripts/common/transition.py");
 export const commonTrellisConfig = readTemplate(
   "scripts/common/trellis_config.py",
 );
@@ -114,7 +112,7 @@ export function getAllScripts(): Map<string, string> {
   scripts.set("common/session_context.py", commonSessionContext);
   scripts.set("common/packages_context.py", commonPackagesContext);
   scripts.set("common/workflow_phase.py", commonWorkflowPhase);
-  scripts.set("common/workflow_gate.py", commonWorkflowGate);
+  scripts.set("common/transition.py", commonTransition);
   scripts.set("common/trellis_config.py", commonTrellisConfig);
   scripts.set("common/safe_commit.py", commonSafeCommit);
 

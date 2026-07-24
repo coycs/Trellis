@@ -44,7 +44,9 @@ Every task has its own directory under `.trellis/tasks/{MM-DD-name}/` holding `t
 ```bash
 # Task lifecycle
 python3 ./.trellis/scripts/task.py create "<title>" [--slug <name>] [--parent <dir>]
-python3 ./.trellis/scripts/task.py start <name>          # set active task (session-scoped when available)
+python3 ./.trellis/scripts/task.py approve <name>        # bind approval to current artifacts
+python3 ./.trellis/scripts/task.py start <name>          # enter in_progress
+python3 ./.trellis/scripts/task.py review <name> -- <test-command> # run tests and enter review
 python3 ./.trellis/scripts/task.py current --source      # show active task and source
 python3 ./.trellis/scripts/task.py finish                # clear active task (triggers after_finish hooks)
 python3 ./.trellis/scripts/task.py archive <name>        # move to archive/{year-month}/
@@ -73,7 +75,7 @@ python3 ./.trellis/scripts/task.py create-pr [name] [--dry-run]
 
 > Run `python3 ./.trellis/scripts/task.py --help` to see the authoritative, up-to-date list.
 
-**Current-task mechanism**: `task.py create` creates the task directory and (when session identity is available) auto-sets the per-session active-task pointer so the planning breadcrumb fires immediately. `task.py start` writes the same pointer (idempotent if already set) and flips `task.json.status` from `planning` to `in_progress`. State is stored under `.trellis/.runtime/sessions/`. If no context key is available from hook input, `TRELLIS_CONTEXT_ID`, or a platform-native session environment variable, there is no active task and `task.py start` fails with a session identity hint. `task.py finish` deletes the current session file (status unchanged). `task.py archive <task>` writes `status=completed`, moves the directory to `archive/`, and deletes any runtime session files that still point at the archived task.
+**Current-task mechanism**: lifecycle changes are strict and linear: `planning → in_progress → review → completed`. `approve` binds the current planning artifacts, `start` requires that approval and a session identity, `review` executes a real test command against a clean commit, and `archive` requires fresh passing evidence. `finish` only clears the session pointer.
 
 ### Workspace System
 
@@ -435,9 +437,10 @@ Skip this step. Context is loaded directly by the `trellis-before-dev` skill in 
 
 #### 1.4 Activate task `[required · once]`
 
-After artifact review, flip the task status to `in_progress`:
+After artifact review, approve the exact artifacts and enter `in_progress`:
 
 ```bash
+python3 ./.trellis/scripts/task.py approve <task-dir> [--complex]
 python3 ./.trellis/scripts/task.py start <task-dir>
 ```
 
