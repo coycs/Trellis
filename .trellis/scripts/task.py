@@ -8,6 +8,7 @@ Usage:
     python3 task.py add-context <dir> <file> <path> [reason] # Add jsonl entry
     python3 task.py validate <dir>              # Validate jsonl files
     python3 task.py list-context <dir>          # List jsonl entries
+    python3 task.py approve <dir> [--complex]   # Approve current planning artifacts
     python3 task.py start <dir>                 # Set active task
     python3 task.py current [--source] [--json] # Show active task
     python3 task.py finish                      # Clear active task
@@ -45,8 +46,16 @@ from common.active_task import (
     set_active_task,
 )
 from common.io import read_json, write_json
+from common.config import get_workflow_gate_mode
 from common.task_utils import resolve_task_dir, run_task_hooks
 from common.tasks import iter_active_tasks, children_progress
+from common.workflow_gate import (
+    WorkflowLockError,
+    apply_start_transition,
+    approve_implementation,
+    evaluate_start,
+    task_transition_lock,
+)
 
 # Import command handlers from split modules (also re-exports for plan.py compatibility)
 from common.task_store import (
@@ -70,8 +79,35 @@ from common.task_context import (
 # Command: start / finish
 # =============================================================================
 
+def cmd_approve(args: argparse.Namespace) -> int:
+    """Approve implementation against the current planning artifact hashes."""
+    repo_root = get_repo_root()
+    full_path = resolve_task_dir(args.dir, repo_root)
+    task_json_path = full_path / FILE_TASK_JSON
+    if not full_path.is_dir() or not task_json_path.is_file():
+        print(colored(f"Error: Task not found: {args.dir}", Colors.RED), file=sys.stderr)
+        return 1
+
+    try:
+        approved, message = approve_implementation(
+            full_path,
+            task_json_path,
+            get_workflow_gate_mode(repo_root),
+            explicit_complex=args.complex,
+        )
+    except WorkflowLockError as exc:
+        print(colored(f"Error: {exc}", Colors.RED), file=sys.stderr)
+        return 1
+
+    if not approved:
+        print(colored(f"Error: {message}", Colors.RED), file=sys.stderr)
+        return 1
+    print(colored(f"✓ {message}", Colors.GREEN))
+    return 0
+
+
 def cmd_start(args: argparse.Namespace) -> int:
-    """Set active task."""
+    """Set active task, enforcing planning gates before status mutation."""
     repo_root = get_repo_root()
     task_input = args.dir
 
@@ -79,27 +115,20 @@ def cmd_start(args: argparse.Namespace) -> int:
         print(colored("Error: task directory or name required", Colors.RED))
         return 1
 
-    # Resolve task directory (supports task name, relative path, or absolute path)
     full_path = resolve_task_dir(task_input, repo_root)
-
     if not full_path.is_dir():
         print(colored(f"Error: Task not found: {task_input}", Colors.RED))
         print("Hint: Use task name (e.g., 'my-task') or full path (e.g., '.trellis/tasks/01-31-my-task')")
         return 1
 
-    # Convert to relative path for storage
     try:
         task_dir = full_path.relative_to(repo_root).as_posix()
     except ValueError:
         task_dir = str(full_path)
 
     task_json_path = full_path / FILE_TASK_JSON
-
-    if not resolve_context_key():
-        # Degraded mode: no session identity available.
-        # Hook didn't inject TRELLIS_CONTEXT_ID (common on Windows + Claude Code,
-        # --continue resume path, fork distribution, hooks disabled, etc.). Skip
-        # per-session pointer write; AI continues based on conversation context.
+    degraded = not resolve_context_key()
+    if degraded:
         print(colored(
             "ℹ Session identity not available; active-task pointer not persisted "
             "this session (degraded mode). AI continues based on conversation context.",
@@ -111,36 +140,65 @@ def cmd_start(args: argparse.Namespace) -> int:
             Colors.YELLOW,
         ))
 
-        # Still flip task.json status: planning → in_progress so downstream phases proceed.
-        if task_json_path.is_file():
-            data = read_json(task_json_path)
-            if data and data.get("status") == "planning":
-                data["status"] = "in_progress"
-                if write_json(task_json_path, data):
-                    print(colored("✓ Status: planning → in_progress (degraded)", Colors.GREEN))
-            run_task_hooks("after_start", task_json_path, repo_root)
-        return 0
+    data = read_json(task_json_path) if task_json_path.is_file() else None
+    if data and data.get("status") == "planning":
+        mode = get_workflow_gate_mode(repo_root)
+        try:
+            with task_transition_lock(task_json_path):
+                data = read_json(task_json_path)
+                if not data:
+                    print(colored("Error: task.json is invalid", Colors.RED), file=sys.stderr)
+                    return 1
 
-    active = set_active_task(task_dir, repo_root)
-    if active:
+                if data.get("status") == "planning":
+                    gate = evaluate_start(full_path, data, mode)
+                    for issue in gate.issues:
+                        label = "Error" if mode == "strict" else "Warning"
+                        color = Colors.RED if mode == "strict" else Colors.YELLOW
+                        print(
+                            colored(f"{label}: workflow gate: {issue}", color),
+                            file=sys.stderr,
+                        )
+                    if not gate.allowed:
+                        print(
+                            "Run `task.py approve <dir>` after reviewing the planning artifacts.",
+                            file=sys.stderr,
+                        )
+                        return 1
+
+                    active = None if degraded else set_active_task(task_dir, repo_root)
+                    if not degraded and not active:
+                        print(colored("Error: Failed to set current task", Colors.RED))
+                        return 1
+
+                    data = apply_start_transition(full_path, data, mode)
+                    if not write_json(task_json_path, data):
+                        print(colored("Error: Failed to update task status", Colors.RED), file=sys.stderr)
+                        return 1
+
+                    if active:
+                        print(colored(f"✓ Current task set to: {task_dir}", Colors.GREEN))
+                        print(f"Source: {active.source}")
+                    suffix = " (degraded)" if degraded else ""
+                    print(colored(f"✓ Status: planning → in_progress{suffix}", Colors.GREEN))
+        except WorkflowLockError as exc:
+            print(colored(f"Error: {exc}", Colors.RED), file=sys.stderr)
+            return 1
+    elif not degraded:
+        active = set_active_task(task_dir, repo_root)
+        if not active:
+            print(colored("Error: Failed to set current task", Colors.RED))
+            return 1
         print(colored(f"✓ Current task set to: {task_dir}", Colors.GREEN))
         print(f"Source: {active.source}")
 
-        if task_json_path.is_file():
-            data = read_json(task_json_path)
-            if data and data.get("status") == "planning":
-                data["status"] = "in_progress"
-                if write_json(task_json_path, data):
-                    print(colored("✓ Status: planning → in_progress", Colors.GREEN))
-
+    if not degraded:
         print()
         print(colored("The hook will now inject context from this task's jsonl files.", Colors.BLUE))
 
+    if task_json_path.is_file():
         run_task_hooks("after_start", task_json_path, repo_root)
-        return 0
-    else:
-        print(colored("Error: Failed to set current task", Colors.RED))
-        return 1
+    return 0
 
 
 def cmd_finish(args: argparse.Namespace) -> int:
@@ -385,6 +443,7 @@ Usage:
   python3 task.py add-context <dir> <jsonl> <path> [reason]  Add entry to jsonl
   python3 task.py validate <dir>                     Validate jsonl files
   python3 task.py list-context <dir>                 List jsonl entries
+  python3 task.py approve <dir> [--complex]          Approve current planning artifacts
   python3 task.py start <dir>                        Set active task
   python3 task.py current [--source]                 Show active task
   python3 task.py finish                             Clear active task
@@ -413,6 +472,7 @@ Examples:
   python3 task.py create "Child task" --slug child --parent .trellis/tasks/01-21-parent
   python3 task.py add-context <dir> implement .trellis/spec/cli/backend/auth.md "Auth guidelines"
   python3 task.py set-branch <dir> task/add-login
+  python3 task.py approve .trellis/tasks/01-21-add-login --complex
   python3 task.py start .trellis/tasks/01-21-add-login
   python3 task.py current --source
   python3 task.py finish
@@ -506,6 +566,18 @@ def main() -> int:
     p_listctx = subparsers.add_parser("list-context", help="List context entries")
     p_listctx.add_argument("dir", help="Task directory")
 
+    # approve
+    p_approve = subparsers.add_parser(
+        "approve",
+        help="Approve implementation against current planning artifacts",
+    )
+    p_approve.add_argument("dir", help="Task directory")
+    p_approve.add_argument(
+        "--complex",
+        action="store_true",
+        help="Require non-empty prd.md, design.md, and implement.md",
+    )
+
     # start
     p_start = subparsers.add_parser("start", help="Set active task")
     p_start.add_argument("dir", help="Task directory")
@@ -577,6 +649,7 @@ def main() -> int:
         "add-context": cmd_add_context,
         "validate": cmd_validate,
         "list-context": cmd_list_context,
+        "approve": cmd_approve,
         "start": cmd_start,
         "current": cmd_current,
         "finish": cmd_finish,

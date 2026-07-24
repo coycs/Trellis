@@ -33,6 +33,23 @@ max_journal_lines: 2000
 # session_auto_commit: true
 
 #-------------------------------------------------------------------------------
+# Workflow transition gates
+#-------------------------------------------------------------------------------
+
+# Controls executable checks before `task.py start` changes a task from
+# planning to in_progress.
+# - off: legacy behavior; do not evaluate planning artifacts.
+# - warn (default): report violations and continue for compatibility.
+# - strict: require non-empty planning artifacts plus an implementation
+#   approval bound to their current SHA-256 hashes.
+#
+# Record approval after human review with:
+#   python3 ./.trellis/scripts/task.py approve <task-dir> [--complex]
+#
+# workflow_gates:
+#   mode: warn
+
+#-------------------------------------------------------------------------------
 # Task Lifecycle Hooks
 #-------------------------------------------------------------------------------
 

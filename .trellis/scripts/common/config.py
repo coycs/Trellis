@@ -169,6 +169,7 @@ DEFAULT_SESSION_COMMIT_MESSAGE = "chore: record journal"
 DEFAULT_MAX_JOURNAL_LINES = 2000
 DEFAULT_SESSION_AUTO_COMMIT = True
 DEFAULT_CODEX_DISPATCH_MODE = "auto"
+DEFAULT_WORKFLOW_GATE_MODE = "warn"
 
 CONFIG_FILE = "config.yaml"
 
@@ -279,6 +280,35 @@ def get_codex_dispatch_mode(repo_root: Path | None = None) -> str:
         file=sys.stderr,
     )
     return "inline"
+
+
+def get_workflow_gate_mode(repo_root: Path | None = None) -> str:
+    """Return workflow transition enforcement mode.
+
+    ``warn`` is the compatibility default: violations are visible but do not
+    block existing projects. ``strict`` blocks invalid transitions and ``off``
+    preserves the legacy behavior without evaluating workflow artifacts.
+    """
+    config = _load_config(repo_root)
+    section = config.get("workflow_gates")
+    if section is None:
+        return DEFAULT_WORKFLOW_GATE_MODE
+    if not isinstance(section, dict):
+        print(
+            f"[WARN] invalid workflow_gates config: {section!r}; using warn",
+            file=sys.stderr,
+        )
+        return DEFAULT_WORKFLOW_GATE_MODE
+
+    raw = section.get("mode", DEFAULT_WORKFLOW_GATE_MODE)
+    mode = str(raw).strip().lower()
+    if mode in ("off", "warn", "strict"):
+        return mode
+    print(
+        f"[WARN] invalid workflow_gates.mode value: {raw!r}; using warn",
+        file=sys.stderr,
+    )
+    return DEFAULT_WORKFLOW_GATE_MODE
 
 
 DEFAULT_CONTEXT_INJECTION_MAX_FILE_BYTES = 32768
