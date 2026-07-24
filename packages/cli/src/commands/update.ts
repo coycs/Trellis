@@ -42,6 +42,7 @@ import {
   // Configuration
   configYamlTemplate,
   gitignoreTemplate,
+  removedTemplates,
   workflowMdTemplate,
 } from "../templates/trellis/index.js";
 import { agentsMdContent } from "../templates/markdown/index.js";
@@ -2234,6 +2235,9 @@ export async function update(options: UpdateOptions): Promise<void> {
     codexUpgradeNeeded ? new Set<AITool>(["codex"]) : undefined,
     breakingBypass,
   );
+  const obsoleteFiles = removedTemplates.filter((file) =>
+    fs.existsSync(path.join(cwd, file)),
+  );
 
   // Load update.skip paths (used for both safe-file-delete and template collection)
   const skipPaths = loadUpdateSkipPaths(cwd);
@@ -2415,7 +2419,8 @@ export async function update(options: UpdateOptions): Promise<void> {
     changes.autoUpdateFiles.length === 0 &&
     changes.changedFiles.length === 0 &&
     !hasPendingMigrations &&
-    !hasSafeDeletes
+    !hasSafeDeletes &&
+    obsoleteFiles.length === 0
   ) {
     if (!options.dryRun && missingManagedFileHashes.size > 0) {
       updateHashes(cwd, missingManagedFileHashes);
@@ -2508,6 +2513,9 @@ export async function update(options: UpdateOptions): Promise<void> {
 
   // Dry run mode
   if (options.dryRun) {
+    for (const file of obsoleteFiles) {
+      console.log(chalk.gray(`  - ${file}`));
+    }
     console.log(chalk.gray("[Dry run] No changes made."));
     return;
   }
@@ -2537,6 +2545,12 @@ export async function update(options: UpdateOptions): Promise<void> {
     console.log(
       chalk.gray(`\nBackup created: ${path.relative(cwd, backupDir)}/`),
     );
+  }
+
+  for (const file of obsoleteFiles) {
+    fs.rmSync(path.join(cwd, file), { force: true });
+    removeHash(cwd, file);
+    console.log(chalk.cyan(`  - Removed obsolete template: ${file}`));
   }
 
   // Execute migrations if --migrate flag is set

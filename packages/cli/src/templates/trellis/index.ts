@@ -75,6 +75,9 @@ export const addSessionScript = readTemplate("scripts/add_session.py");
 export const workflowMdTemplate = readTemplate("workflow.md");
 export const configYamlTemplate = readTemplate("config.yaml");
 export const gitignoreTemplate = readTemplate("gitignore.txt");
+export const removedTemplates = [
+  ".trellis/scripts/common/workflow_gate.py",
+] as const;
 
 // Channel runtime agent definitions (loaded by
 // `packages/cli/src/commands/channel/agent-loader.ts` from `.trellis/agents/`).

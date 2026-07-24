@@ -269,6 +269,20 @@ describe("update() integration", () => {
     expect(output).not.toContain(`${startPath} (modified, skipped)`);
   });
 
+  it("removes obsolete Trellis templates without migration flags", async () => {
+    await setupProject();
+    const legacy = ".trellis/scripts/common/workflow_gate.py";
+    writeProjectFile(legacy, "legacy");
+    const hashes = readHashesV2(hashFilePath());
+    hashes[legacy] = computeHash("legacy");
+    writeHashesV2(hashFilePath(), hashes);
+
+    await update({ force: true });
+
+    expect(fs.existsSync(projectFile(legacy))).toBe(false);
+    expect(readHashesV2(hashFilePath())[legacy]).toBeUndefined();
+  });
+
   it("[issue-zcode-codex-upgrade] zcode private skills do not trigger legacy Codex backfill", async () => {
     await init({ yes: true, force: true, zcode: true });
 

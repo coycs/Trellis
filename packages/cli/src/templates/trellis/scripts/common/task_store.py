@@ -58,6 +58,7 @@ from .task_utils import (
 )
 from .transition import (
     TransitionError,
+    evidence_commit,
     git_state,
     is_evidence_fresh,
     transition,
@@ -571,17 +572,11 @@ def cmd_archive(args: argparse.Namespace) -> int:
             data = read_json(task_json_path)
             if not data:
                 raise TransitionError("task.json is invalid")
-            meta = data.get("meta")
-            workflow = meta.get("workflow") if isinstance(meta, dict) else None
-            evidence = workflow.get("evidence") if isinstance(workflow, dict) else None
-            latest = evidence[-1] if isinstance(evidence, list) and evidence else None
-            raw_commit = latest.get("commit") if isinstance(latest, dict) else None
-            commit = raw_commit if isinstance(raw_commit, str) else ""
             data = transition(
                 task_dir,
                 data,
                 "completed",
-                evidence_fresh=is_evidence_fresh(repo_root, commit),
+                evidence_fresh=is_evidence_fresh(repo_root, evidence_commit(data)),
             )
             data["completedAt"] = today
             if not write_json(task_json_path, data):
@@ -590,38 +585,24 @@ def cmd_archive(args: argparse.Namespace) -> int:
         print(colored(f"Error: {exc}", Colors.RED), file=sys.stderr)
         return 1
 
-    if data:
-            # Warn (don't block) when the recorded branch is stale — it was
-            # likely already merged and deleted (#399 item 2).
-            stored_branch = data.get("branch")
-            if stored_branch and not branch_exists_locally(stored_branch, repo_root):
-                print(
-                    colored(
-                        f"Warning: recorded branch '{stored_branch}' no longer exists locally "
-                        "(likely merged and deleted).",
-                        Colors.YELLOW,
-                    ),
-                    file=sys.stderr,
-                )
+    stored_branch = data.get("branch")
+    if stored_branch and not branch_exists_locally(stored_branch, repo_root):
+        print(colored(
+            f"Warning: recorded branch '{stored_branch}' no longer exists locally.",
+            Colors.YELLOW,
+        ), file=sys.stderr)
 
-            # Handle subtask relationships on archive.
-            # Keep this task in its parent's children list so progress
-            # counters (children_progress) stay consistent — children
-            # missing from the active set are treated as completed.
-            task_children = data.get("children", [])
-
-            # If this is a parent, clear parent field in all children
-            if task_children:
-                for child_name in task_children:
-                    child_dir_path = find_task_by_name(child_name, tasks_dir)
-                    if child_dir_path:
-                        child_json = child_dir_path / FILE_TASK_JSON
-                        if child_json.is_file():
-                            child_data = read_json(child_json)
-                            if child_data:
-                                child_data["parent"] = None
-                                write_json(child_json, child_data)
-                                modified_children.append(child_dir_path.name)
+    for child_name in data.get("children", []):
+        child_dir = find_task_by_name(child_name, tasks_dir)
+        if not child_dir:
+            continue
+        child_json = child_dir / FILE_TASK_JSON
+        child = read_json(child_json) if child_json.is_file() else None
+        if not child:
+            continue
+        child["parent"] = None
+        write_json(child_json, child)
+        modified_children.append(child_dir.name)
 
     # Clear any session that still points at this task before the path moves.
     from .active_task import clear_task_from_sessions

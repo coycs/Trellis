@@ -134,9 +134,7 @@ def transition(
             raise TransitionError("passing test evidence is required")
         workflow["evidence"] = [evidence]
     elif (current, target) == ("review", "completed"):
-        evidence_items = workflow.get("evidence")
-        latest = evidence_items[-1] if isinstance(evidence_items, list) and evidence_items else None
-        if not isinstance(latest, dict) or not evidence_fresh:
+        if not evidence_fresh:
             raise TransitionError("test evidence is stale")
     else:
         raise TransitionError(f"invalid transition: {current} -> {target}")
@@ -176,6 +174,16 @@ def is_evidence_fresh(repo_root: Path, commit: str) -> bool:
         cwd=repo_root,
     )
     return rc == 0
+
+
+def evidence_commit(task: dict) -> str:
+    """Return the commit recorded by the latest passing test."""
+    evidence = _workflow(task).get("evidence")
+    latest = evidence[-1] if isinstance(evidence, list) and evidence else None
+    commit = latest.get("commit") if isinstance(latest, dict) else None
+    if not isinstance(commit, str):
+        raise TransitionError("passing test evidence is required")
+    return commit
 
 
 def run_tests(repo_root: Path, command: list[str], revision: int) -> dict:

@@ -215,6 +215,7 @@ describe("regression: branch context in session records (issue-106)", () => {
 
 describe("regression: add_session.py runtime branch context (issue-106)", () => {
   let tmpDir: string;
+  const pythonCmd = process.platform === "win32" ? "python" : "python3";
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "trellis-session-"));
@@ -344,26 +345,24 @@ ${separator}
   }
 
   function runAddSession(title: string, options?: { branch?: string }): void {
-    const command = [
-      "python3",
-      JSON.stringify(
-        path.join(tmpDir, ".trellis", "scripts", "add_session.py"),
-      ),
+    const args = [
+      path.join(tmpDir, ".trellis", "scripts", "add_session.py"),
       "--title",
-      JSON.stringify(title),
+      title,
       "--summary",
-      JSON.stringify("Regression test session"),
+      "Regression test session",
       "--no-commit",
     ];
     if (options?.branch) {
-      command.push("--branch", JSON.stringify(options.branch));
+      args.push("--branch", options.branch);
     }
 
-    execSync(command.join(" "), {
+    const result = spawnSync(pythonCmd, args, {
       cwd: tmpDir,
       encoding: "utf-8",
       env: { ...process.env, TRELLIS_CONTEXT_ID: "session-a" },
     });
+    expect(result.status, result.stderr).toBe(0);
   }
 
   function createLocalBranch(branch: string): void {
@@ -1643,6 +1642,36 @@ describe("regression: current-task path normalization", () => {
     );
   }
 
+  function prepareReviewedTask(
+    taskDir: string,
+    env: NodeJS.ProcessEnv = sessionEnv({ TRELLIS_CONTEXT_ID: "archive-test" }),
+  ): void {
+    const taskJson = path.join(taskDir, "task.json");
+    const task = JSON.parse(fs.readFileSync(taskJson, "utf-8")) as Record<string, unknown>;
+    task.status = "planning";
+    task.meta = {};
+    fs.writeFileSync(taskJson, JSON.stringify(task, null, 2));
+
+    const script = path.join(tmpDir, ".trellis", "scripts", "task.py");
+    execSync(`${pythonCmd} ${JSON.stringify(script)} approve ${JSON.stringify(taskDir)}`, {
+      cwd: tmpDir, env, stdio: "ignore",
+    });
+    execSync(`${pythonCmd} ${JSON.stringify(script)} start ${JSON.stringify(taskDir)}`, {
+      cwd: tmpDir, env, stdio: "ignore",
+    });
+    if (!fs.existsSync(path.join(tmpDir, ".git"))) {
+      execSync("git init -q", { cwd: tmpDir });
+    }
+    execSync("git config user.email test@example.com", { cwd: tmpDir });
+    execSync("git config user.name Test", { cwd: tmpDir });
+    execSync("git add -A && git commit --allow-empty -q -m implementation", { cwd: tmpDir });
+    execSync(
+      `${pythonCmd} ${JSON.stringify(script)} review ${JSON.stringify(taskDir)} -- ${pythonCmd} -c "print('ok')"`,
+      { cwd: tmpDir, env, stdio: "ignore" },
+    );
+    execSync("git add -A && git commit --allow-empty -q -m review", { cwd: tmpDir });
+  }
+
   function runPython(
     relativeScriptPath: string,
     input?: string,
@@ -1665,53 +1694,22 @@ describe("regression: current-task path normalization", () => {
     return content ?? "";
   }
 
-  it("[session-current-task] task.py start without context key enters degraded mode (returns 0, no pointer)", () => {
-    // 0.5.3 hotfix: task.py start no longer hard-fails when no session identity
-    // is available (Windows + Claude Code, --continue resume, etc.). Instead it
-    // prints a degraded-mode warning and returns 0 so the AI workflow can
-    // proceed.
+  it("[session-current-task] task.py start requires a session identity", () => {
     setupTaskRepo();
     const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
 
-    const output = execSync(
-      `${pythonCmd} ${JSON.stringify(taskScriptPath)} start ${JSON.stringify(".trellis\\\\tasks\\\\issue-106")}`,
-      {
-        cwd: tmpDir,
-        encoding: "utf-8",
-        env: sessionEnv(),
-      },
+    const result = spawnSync(
+      pythonCmd,
+      [taskScriptPath, "start", ".trellis\\tasks\\issue-106"],
+      { cwd: tmpDir, encoding: "utf-8", env: sessionEnv() },
     );
 
-    expect(output).toContain("Session identity not available");
-    expect(output).toContain("degraded");
-    expect(output).toContain("conversation context");
-    expect(output).toContain("TRELLIS_CONTEXT_ID");
-
-    // No active-task pointer written
-    expect(fs.existsSync(path.join(tmpDir, ".trellis", ".current-task"))).toBe(
-      false,
-    );
-    expect(fs.existsSync(path.join(tmpDir, ".trellis", ".runtime"))).toBe(
-      false,
-    );
-
-    // task.json.status remains in_progress (was already in_progress; degraded
-    // mode preserves the existing status when not planning)
-    const taskJsonPath = path.join(
-      tmpDir,
-      ".trellis",
-      "tasks",
-      "issue-106",
-      "task.json",
-    );
-    const taskJson = JSON.parse(fs.readFileSync(taskJsonPath, "utf-8"));
-    expect(taskJson.status).toBe("in_progress");
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("session identity is required");
+    expect(fs.existsSync(path.join(tmpDir, ".trellis", ".runtime"))).toBe(false);
   });
 
-  it("[session-current-task] task.py start in degraded mode flips planning → in_progress", () => {
-    // Verify the status flip path of degraded mode by setting up a task with
-    // status=planning explicitly, then asserting the flip happened without a
-    // session identity being available.
+  it("[session-current-task] missing identity never mutates planning status", () => {
     setupTaskRepo();
     const taskJsonPath = path.join(
       tmpDir,
@@ -1725,14 +1723,15 @@ describe("regression: current-task path normalization", () => {
     fs.writeFileSync(taskJsonPath, JSON.stringify(taskJson, null, 2), "utf-8");
 
     const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
-    const output = execSync(
-      `${pythonCmd} ${JSON.stringify(taskScriptPath)} start ${JSON.stringify(".trellis\\\\tasks\\\\issue-106")}`,
+    const result = spawnSync(
+      pythonCmd,
+      [taskScriptPath, "start", ".trellis\\tasks\\issue-106"],
       { cwd: tmpDir, encoding: "utf-8", env: sessionEnv() },
     );
 
-    expect(output).toContain("planning → in_progress");
+    expect(result.status).toBe(1);
     const after = JSON.parse(fs.readFileSync(taskJsonPath, "utf-8"));
-    expect(after.status).toBe("in_progress");
+    expect(after.status).toBe("planning");
   });
 
   it("[session-current-task] task.py start writes session runtime state when TRELLIS_CONTEXT_ID is set", () => {
@@ -2020,6 +2019,15 @@ describe("regression: current-task path normalization", () => {
     };
     expect(beforeStart.status).toBe("planning");
 
+    execSync(
+      `${pythonCmd} ${JSON.stringify(taskScriptPath)} approve ${JSON.stringify(relTaskDir)}`,
+      {
+        cwd: tmpDir,
+        encoding: "utf-8",
+        env: sessionEnv({ TRELLIS_CONTEXT_ID: "r7-idem-session" }),
+      },
+    );
+
     // Now run start with the same session — must not error.
     let startStatus = 0;
     let startOutput = "";
@@ -2097,6 +2105,7 @@ describe("regression: current-task path normalization", () => {
       path.join(".trellis", ".runtime", "sessions", "session-other.json"),
       JSON.stringify({ current_task: ".trellis/tasks/other-task" }, null, 2),
     );
+    prepareReviewedTask(path.join(tmpDir, ".trellis", "tasks", "issue-106"));
 
     execSync(
       `${pythonCmd} ${JSON.stringify(taskScriptPath)} archive issue-106 --no-commit`,
@@ -2149,6 +2158,7 @@ describe("regression: current-task path normalization", () => {
     expect(taskDirName).toBeDefined();
     const activeTaskDir = path.join(tasksDir, taskDirName as string);
     fs.writeFileSync(path.join(activeTaskDir, "prd.md"), "# PRD\n", "utf-8");
+    prepareReviewedTask(activeTaskDir, env);
 
     execSync(
       `${pythonCmd} ${JSON.stringify(taskScriptPath)} archive ${JSON.stringify(taskDirName)} --no-commit`,
@@ -2343,6 +2353,8 @@ describe("regression: current-task path normalization", () => {
           2,
         ),
       );
+      writeProjectFile(path.join(".trellis", "tasks", name, "prd.md"), "# PRD\n");
+      prepareReviewedTask(path.join(tmpDir, ".trellis", "tasks", name));
     }
 
     // Form 1: bare slug
@@ -2354,6 +2366,7 @@ describe("regression: current-task path normalization", () => {
         env: sessionEnv(),
       },
     );
+    execSync("git add -A && git commit -q -m archive-1", { cwd: tmpDir });
 
     // Form 2: relative path
     execSync(
@@ -2364,6 +2377,7 @@ describe("regression: current-task path normalization", () => {
         env: sessionEnv(),
       },
     );
+    execSync("git add -A && git commit -q -m archive-2", { cwd: tmpDir });
 
     // Form 3: absolute path
     const absPath = path.join(tmpDir, ".trellis", "tasks", taskNames[2]);
@@ -2540,7 +2554,7 @@ print(json.dumps({
     });
   });
 
-  it("[grok] task.py start ignores GROK_SESSION_ID and enters degraded mode", () => {
+  it("[grok] task.py start rejects unusable GROK_SESSION_ID", () => {
     // GROK_SESSION_ID is a real Grok Build env var, but it is only injected
     // into hook script processes (confirmed against docs.x.ai and a real
     // `grok -p` run: the bash-tool subprocess that actually runs task.py only
@@ -2550,18 +2564,14 @@ print(json.dumps({
     setupTaskRepo();
     const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
 
-    const output = execSync(
-      `${pythonCmd} ${JSON.stringify(taskScriptPath)} start ${JSON.stringify(".trellis/tasks/issue-106")}`,
-      {
-        cwd: tmpDir,
-        encoding: "utf-8",
-        env: sessionEnv({ GROK_SESSION_ID: "native-a" }),
-      },
+    const result = spawnSync(
+      pythonCmd,
+      [taskScriptPath, "start", ".trellis/tasks/issue-106"],
+      { cwd: tmpDir, encoding: "utf-8", env: sessionEnv({ GROK_SESSION_ID: "native-a" }) },
     );
 
-    expect(output).toContain("Session identity not available");
-    expect(output).toContain("degraded");
-    expect(output).not.toContain("session:grok_native-a");
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("session identity is required");
     const sessionsDir = path.join(tmpDir, ".trellis", ".runtime", "sessions");
     expect(fs.existsSync(path.join(sessionsDir, "grok_native-a.json"))).toBe(
       false,
@@ -4585,14 +4595,14 @@ print(len(entries))
     return readFileSync(templatePath, "utf-8");
   }
 
-  it("[workflow-state-r1] template workflow.md [workflow-state:in_progress] mentions commit (Phase 3.4)", () => {
+  it("[workflow-state-r1] in_progress requires commit before verified review", () => {
     const wf = templateWorkflowMd();
     const match = wf.match(
       /\[workflow-state:in_progress\]([\s\S]*?)\[\/workflow-state:in_progress\]/,
     );
     expect(match).toBeTruthy();
     const body = match?.[1] ?? "";
-    expect(body).toMatch(/commit \(Phase 3\.4\)/i);
+    expect(body).toContain("commit -> `task.py review");
   });
 
   it("[issue-237] all implement/check agent templates contain recursion guards", () => {
@@ -4723,9 +4733,6 @@ print(len(entries))
       'Ready gate: both `implement.jsonl` and `check.jsonl` must contain at least one real `{"file": "...", "reason": "..."}` entry before `task.py start`.',
     );
     expect(wf).toContain(
-      "Runtime consumers tolerate missing or seed-only manifests for compatibility, but that tolerance is not a planning-ready state.",
-    );
-    expect(wf).toContain(
       "`implement.jsonl` and `check.jsonl` each contain at least one real curated entry (seed row does not count)",
     );
 
@@ -4793,11 +4800,12 @@ print(len(entries))
     );
   });
 
-  it("[workflow-state-r3-completed] template workflow.md [workflow-state:completed] block is present and well-formed", () => {
+  it("[workflow-state-r3-review] template workflow.md has a review block", () => {
     const wf = templateWorkflowMd();
     expect(wf).toMatch(
-      /\[workflow-state:completed\]\s*\n[\s\S]+?\n\s*\[\/workflow-state:completed\]/,
+      /\[workflow-state:review\]\s*\n[\s\S]+?\n\s*\[\/workflow-state:review\]/,
     );
+    expect(wf).not.toContain("[workflow-state:completed]");
   });
 
   it("[strip-breadcrumb] _strip_breadcrumb_tag_blocks only strips matched STATUS pairs (backreference parity with parser)", () => {
@@ -4826,11 +4834,12 @@ print(len(entries))
       "result = {'M': mod._strip_breadcrumb_tag_blocks(matched), 'X': mod._strip_breadcrumb_tag_blocks(mismatched), 'N': mod._strip_breadcrumb_tag_blocks(nested_orphan)}",
       "print(json.dumps(result))",
     ].join("; ");
-    const output = execSync(`${pythonCmd} -c ${JSON.stringify(probe)}`, {
+    const run = spawnSync(pythonCmd, ["-c", probe], {
       cwd: tmpDir,
       encoding: "utf-8",
     });
-    const lastLine = output
+    expect(run.status, run.stderr).toBe(0);
+    const lastLine = run.stdout
       .split("\n")
       .filter((l) => l.startsWith("{"))
       .pop();
@@ -5805,6 +5814,7 @@ print(len(entries))
     const data = JSON.parse(fs.readFileSync(taskJsonPath, "utf-8"));
     data.branch = "task/deleted-branch-does-not-exist";
     fs.writeFileSync(taskJsonPath, JSON.stringify(data, null, 2));
+    prepareReviewedTask(path.dirname(taskJsonPath));
 
     const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
     const result = spawnSync(
@@ -8038,6 +8048,27 @@ describe("regression: safe auto-commit when .trellis/ is gitignored (0.5.10 → 
     execSync('git commit -q -m "init"', { cwd: tmpDir });
   }
 
+  function prepareReviewedTask(taskDir: string, env: NodeJS.ProcessEnv): void {
+    const taskJson = path.join(taskDir, "task.json");
+    const task = JSON.parse(fs.readFileSync(taskJson, "utf-8"));
+    task.status = "planning";
+    task.meta = {};
+    fs.writeFileSync(taskJson, JSON.stringify(task, null, 2));
+    const script = path.join(tmpDir, ".trellis", "scripts", "task.py");
+    execSync(`${pyCmd} ${JSON.stringify(script)} approve ${JSON.stringify(taskDir)}`, {
+      cwd: tmpDir, env, stdio: "ignore",
+    });
+    execSync(`${pyCmd} ${JSON.stringify(script)} start ${JSON.stringify(taskDir)}`, {
+      cwd: tmpDir, env, stdio: "ignore",
+    });
+    execSync("git add -A && git commit --allow-empty -q -m implementation", { cwd: tmpDir });
+    execSync(
+      `${pyCmd} ${JSON.stringify(script)} review ${JSON.stringify(taskDir)} -- ${pyCmd} -c "print('ok')"`,
+      { cwd: tmpDir, env, stdio: "ignore" },
+    );
+    execSync("git add -A && git commit --allow-empty -q -m review", { cwd: tmpDir });
+  }
+
   function runAddSession(): { stdout: string; stderr: string } {
     const scriptPath = path.join(
       tmpDir,
@@ -8143,6 +8174,10 @@ describe("regression: safe auto-commit when .trellis/ is gitignored (0.5.10 → 
       ),
     );
     writeFile(".trellis/tasks/issue-500/prd.md", "# PRD\n");
+    prepareReviewedTask(
+      path.join(tmpDir, ".trellis", "tasks", "issue-500"),
+      { ...process.env, TRELLIS_CONTEXT_ID: "session-arch" },
+    );
 
     const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
     const result = spawnSync(pyCmd, [taskScriptPath, "archive", "issue-500"], {
@@ -8233,6 +8268,14 @@ describe("regression: safe auto-commit when .trellis/ is gitignored (0.5.10 → 
       ),
     );
     writeFile(".trellis/tasks/issue-600/prd.md", "# PRD\n");
+    prepareReviewedTask(
+      path.join(tmpDir, ".trellis", "tasks", "issue-600"),
+      { ...process.env, TRELLIS_CONTEXT_ID: "session-arch-2" },
+    );
+    const commitsBeforeArchive = execSync("git rev-list --count HEAD", {
+      cwd: tmpDir,
+      encoding: "utf-8",
+    }).trim();
 
     const taskScriptPath = path.join(tmpDir, ".trellis", "scripts", "task.py");
     const result = spawnSync(pyCmd, [taskScriptPath, "archive", "issue-600"], {
@@ -8248,7 +8291,7 @@ describe("regression: safe auto-commit when .trellis/ is gitignored (0.5.10 → 
       cwd: tmpDir,
       encoding: "utf-8",
     });
-    expect(log.trim().split("\n").length).toBe(1);
+    expect(log.trim().split("\n").length).toBe(Number(commitsBeforeArchive));
 
     // Archive directory move still happened on disk.
     const archiveExists = fs

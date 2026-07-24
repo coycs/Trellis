@@ -6,9 +6,18 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 const SCRIPTS = path.resolve(__dirname, "../../src/templates/trellis/scripts");
 const PYTHON = ["python3", "python"].find((name) => {
-  try { execFileSync(name, ["--version"], { stdio: "ignore" }); return true; }
-  catch { return false; }
+  try {
+    execFileSync(name, ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
 });
+
+function python() {
+  if (!PYTHON) throw new Error("Python is required");
+  return PYTHON;
+}
 
 function git(root: string, ...args: string[]) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
@@ -30,7 +39,7 @@ function setup(root: string) {
 }
 
 function run(root: string, ...args: string[]) {
-  return spawnSync(PYTHON!, [".trellis/scripts/task.py", ...args], {
+  return spawnSync(python(), [".trellis/scripts/task.py", ...args], {
     cwd: root, encoding: "utf8",
     env: { ...process.env, TRELLIS_CONTEXT_ID: "test" },
   });
@@ -73,9 +82,9 @@ describe.skipIf(!PYTHON)("strict task lifecycle", () => {
     const task = setup(root);
     run(root, "approve", "task"); run(root, "start", "task");
     git(root, "add", "."); git(root, "commit", "-m", "start");
-    expect(run(root, "review", "task", "--", PYTHON!, "-c", "raise SystemExit(2)").status).toBe(1);
+    expect(run(root, "review", "task", "--", python(), "-c", "raise SystemExit(2)").status).toBe(1);
     expect(data(task).status).toBe("in_progress");
-    expect(run(root, "review", "task", "--", PYTHON!, "-c", "print('ok')").status).toBe(0);
+    expect(run(root, "review", "task", "--", python(), "-c", "print('ok')").status).toBe(0);
     expect(data(task).status).toBe("review");
     expect(data(task).meta.workflow.evidence[0].commit).toBe(git(root, "rev-parse", "HEAD"));
   });
@@ -84,7 +93,40 @@ describe.skipIf(!PYTHON)("strict task lifecycle", () => {
     const task = setup(root);
     run(root, "approve", "task"); run(root, "start", "task");
     fs.writeFileSync(path.join(root, "source.txt"), "dirty\n");
-    expect(run(root, "review", "task", "--", PYTHON!, "-c", "print('ok')").status).toBe(1);
+    expect(run(root, "review", "task", "--", python(), "-c", "print('ok')").status).toBe(1);
     expect(data(task).status).toBe("in_progress");
+  });
+
+  it("archives only fresh reviewed work", () => {
+    setup(root);
+    run(root, "approve", "task"); run(root, "start", "task");
+    git(root, "add", "."); git(root, "commit", "-m", "start");
+    expect(run(root, "review", "task", "--", python(), "-c", "print('ok')").status).toBe(0);
+    git(root, "add", "."); git(root, "commit", "-m", "review");
+
+    expect(run(root, "archive", "task", "--no-commit").status).toBe(0);
+    const archive = path.join(root, ".trellis", "tasks", "archive");
+    const archived = fs.readdirSync(archive)
+      .map((month) => path.join(archive, month, "task", "task.json"))
+      .find(fs.existsSync);
+    expect(archived).toBeDefined();
+    if (!archived) throw new Error("Archived task is missing");
+    expect(JSON.parse(fs.readFileSync(archived, "utf8")).status).toBe("completed");
+  });
+
+  it("rejects archive before review and after source changes", () => {
+    const task = setup(root);
+    expect(run(root, "archive", "task", "--no-commit").status).toBe(1);
+    run(root, "approve", "task"); run(root, "start", "task");
+    git(root, "add", "."); git(root, "commit", "-m", "start");
+    run(root, "review", "task", "--", python(), "-c", "print('ok')");
+    git(root, "add", "."); git(root, "commit", "-m", "review");
+    fs.writeFileSync(path.join(root, "source.txt"), "v2\n");
+    git(root, "add", "."); git(root, "commit", "-m", "source changed");
+
+    const result = run(root, "archive", "task", "--no-commit");
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("test evidence is stale");
+    expect(data(task).status).toBe("review");
   });
 });
